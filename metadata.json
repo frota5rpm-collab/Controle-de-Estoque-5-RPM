@@ -1,0 +1,5 @@
+{
+  "name": "Gestão Frota 5ª RPM",
+  "description": "Sistema de controle de estoque de materiais e frota com integração Supabase.",
+  "requestFramePermissions": []
+}
