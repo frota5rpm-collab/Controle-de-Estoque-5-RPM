@@ -9,6 +9,7 @@ CREATE TABLE IF NOT EXISTS public.materials (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     name TEXT NOT NULL,
     quantity INTEGER DEFAULT 0,
+    unit TEXT DEFAULT 'Unidade', -- Nova coluna para Unidade de Medida
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
@@ -26,11 +27,29 @@ CREATE TABLE IF NOT EXISTS public.movements (
     material_id UUID REFERENCES public.materials(id) ON DELETE CASCADE,
     type TEXT NOT NULL, -- 'ENTRADA' ou 'SAIDA'
     quantity INTEGER NOT NULL,
-    requester TEXT NOT NULL,
-    vehicle_prefix TEXT NOT NULL,
+    requester TEXT, -- Opcional na Entrada
+    vehicle_prefix TEXT, -- Opcional na Entrada
     guide_number TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
+
+-- ============================================================
+-- COMANDOS DE ATUALIZAÇÃO (Se você já tem o banco criado)
+-- ============================================================
+
+-- 1. Adicionar coluna Unidade se não existir
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='materials' AND column_name='unit') THEN
+        ALTER TABLE public.materials ADD COLUMN unit TEXT DEFAULT 'Unidade';
+    END IF;
+END $$;
+
+-- 2. Tornar Responsável e Prefixo opcionais (para permitir Entradas simplificadas)
+ALTER TABLE public.movements ALTER COLUMN requester DROP NOT NULL;
+ALTER TABLE public.movements ALTER COLUMN vehicle_prefix DROP NOT NULL;
+
+-- ============================================================
 
 -- 2. SEGURANÇA (Liberar acesso)
 ALTER TABLE public.materials ENABLE ROW LEVEL SECURITY;
@@ -88,8 +107,7 @@ FOR EACH ROW EXECUTE FUNCTION handle_inventory_update();
       <div className="bg-gray-800 p-8 rounded-lg max-w-3xl w-full shadow-2xl">
         <h2 className="text-2xl font-bold mb-4 text-red-400">Configuração Necessária do Banco</h2>
         <p className="mb-4 text-gray-300">
-          Para que o sistema atualize o estoque automaticamente ao <strong>Inserir</strong>, <strong>Editar</strong> ou <strong>Excluir</strong> movimentações,
-          você precisa executar o código abaixo no Supabase.
+          Para que as alterações de campos opcionais funcionem, execute o código abaixo.
         </p>
         <p className="mb-2 font-semibold">Copie o código SQL abaixo:</p>
         <div className="bg-gray-950 p-4 rounded border border-gray-700 font-mono text-sm overflow-auto max-h-64 mb-4 select-all">

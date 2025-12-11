@@ -55,12 +55,23 @@ export const MovementsTab: React.FC = () => {
       if (movError) throw movError;
 
       // 3. Manually Join in Javascript to avoid Supabase Relationship errors if FKs aren't perfect
-      const matMap = new Map((matData || []).map((m: any) => [m.id, m.name]));
+      // Agora também mapeamos a Unidade do material
+      const matMap = new Map<string, { name: string; unit: string }>();
       
-      const formatted = (movData || []).map((m: any) => ({
-        ...m,
-        material_name: matMap.get(m.material_id) || 'Material não encontrado'
-      }));
+      if (matData) {
+        matData.forEach((m: any) => {
+            matMap.set(m.id, { name: m.name, unit: m.unit });
+        });
+      }
+      
+      const formatted = (movData || []).map((m: any) => {
+        const materialInfo = matMap.get(m.material_id) || { name: 'Material não encontrado', unit: '' };
+        return {
+            ...m,
+            material_name: materialInfo.name,
+            material_unit: materialInfo.unit
+        };
+      });
 
       setMovements(formatted);
       
@@ -217,7 +228,7 @@ export const MovementsTab: React.FC = () => {
                   >
                     <option value="">Selecione um material...</option>
                     {materials.map(m => (
-                      <option key={m.id} value={m.id}>{m.name} (Atual: {m.quantity})</option>
+                      <option key={m.id} value={m.id}>{m.name} ({m.quantity} {m.unit || 'Un'})</option>
                     ))}
                   </select>
                 </div>
@@ -357,7 +368,9 @@ export const MovementsTab: React.FC = () => {
                     )}
                   </td>
                   <td className="p-4 font-medium text-gray-800">{m.material_name}</td>
-                  <td className="p-4 text-center font-mono font-bold">{m.quantity}</td>
+                  <td className="p-4 text-center font-mono font-bold">
+                    {m.quantity} <span className="text-xs font-normal text-gray-500">{m.material_unit}</span>
+                  </td>
                   <td className="p-4 text-sm text-gray-700">{m.requester}</td>
                   <td className="p-4 text-sm font-mono bg-gray-50 rounded text-center w-fit text-gray-800">{m.vehicle_prefix}</td>
                   <td className="p-4 text-sm text-gray-500">{m.guide_number || '-'}</td>
