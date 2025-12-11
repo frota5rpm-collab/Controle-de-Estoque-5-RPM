@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { Material, Movement, MovementType } from '../types';
-import { Plus, ArrowDownCircle, ArrowUpCircle, FileDown, Search, Edit, XCircle, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
+import { Plus, ArrowDownCircle, ArrowUpCircle, FileDown, Search, Edit, XCircle, ArrowUpDown, ArrowUp, ArrowDown, PackagePlus } from 'lucide-react';
 import { exportToExcel } from '../utils/excel';
 
 type SortKey = 'created_at' | 'type' | 'material_name' | 'quantity' | 'requester' | 'vehicle_prefix' | 'guide_number';
@@ -14,6 +14,10 @@ export const MovementsTab: React.FC = () => {
   const [isAdding, setIsAdding] = useState(false);
   const [isEditing, setIsEditing] = useState<Movement | null>(null);
   const [search, setSearch] = useState('');
+
+  // Estado para cadastro rápido de novo material
+  const [isAddingMaterial, setIsAddingMaterial] = useState(false);
+  const [newMaterialData, setNewMaterialData] = useState({ name: '', unit: 'Unidade' });
 
   // Sorting
   const [sortConfig, setSortConfig] = useState<{ key: SortKey; direction: 'ASC' | 'DESC' }>({ 
@@ -38,7 +42,7 @@ export const MovementsTab: React.FC = () => {
     setErrorMsg(null);
     
     try {
-      // 1. Fetch Materials first
+      // 1. Fetch Materials
       const { data: matData, error: matError } = await supabase
         .from('materials')
         .select('*')
@@ -54,19 +58,21 @@ export const MovementsTab: React.FC = () => {
 
       if (movError) throw movError;
 
-      // 3. Manually Join in Javascript to avoid Supabase Relationship errors if FKs aren't perfect
-      const matMap = new Map((matData || []).map((m: any) => [m.id, m.name]));
+      // 3. Join in Javascript
+      // Explicitly cast to prevent type errors
+      const matList = (matData || []) as Material[];
+      const matMap = new Map<string, Material>(matList.map(m => [m.id, m]));
       
       const formatted = (movData || []).map((m: any) => ({
         ...m,
-        material_name: matMap.get(m.material_id) || 'Material não encontrado'
+        material_name: matMap.get(m.material_id)?.name || 'Material não encontrado',
+        material_unit: matMap.get(m.material_id)?.unit || ''
       }));
 
       setMovements(formatted);
       
     } catch (err: any) {
       console.error('Erro ao buscar dados:', err);
-      // Ensure we display the string message, not the object
       setErrorMsg(err.message || JSON.stringify(err));
     } finally {
       setLoading(false);
@@ -77,23 +83,57 @@ export const MovementsTab: React.FC = () => {
     fetchData();
   }, []);
 
+  const handleSaveNewMaterial = async () => {
+      if (!newMaterialData.name.trim()) return;
+
+      try {
+          const { data, error } = await supabase
+              .from('materials')
+              .insert([{ name: newMaterialData.name, quantity: 0, unit: newMaterialData.unit }])
+              .select()
+              .single();
+
+          if (error) throw error;
+
+          alert(`Material "${data.name}" criado com sucesso!`);
+          
+          // Atualiza lista de materiais
+          const { data: matData } = await supabase.from('materials').select('*').order('name');
+          if (matData) setMaterials(matData);
+
+          // Seleciona o novo material no formulário de movimentação
+          setFormData({ ...formData, material_id: data.id });
+          
+          // Fecha modal
+          setIsAddingMaterial(false);
+          setNewMaterialData({ name: '', unit: 'Unidade' });
+
+      } catch (err: any) {
+          alert("Erro ao criar material: " + err.message);
+      }
+  };
+
   const handleSave = async () => {
     // Validação de campos obrigatórios
     if (!formData.material_id) { alert("Selecione um material."); return; }
     if (formData.quantity <= 0) { alert("A quantidade deve ser maior que zero."); return; }
     if (!formData.created_at) { alert("Informe a data."); return; }
-    if (!formData.requester.trim()) { alert("Informe o Responsável pela retirada."); return; }
-    if (!formData.vehicle_prefix.trim()) { alert("Informe o Prefixo da viatura."); return; }
+
+    // Validação Condicional: Responsável e Prefixo só obrigatórios na SAÍDA
+    if (formData.type === MovementType.EXIT) {
+        if (!formData.requester.trim()) { alert("Informe o Responsável pela retirada (Obrigatório na Saída)."); return; }
+        if (!formData.vehicle_prefix.trim()) { alert("Informe o Prefixo da viatura (Obrigatório na Saída)."); return; }
+    }
 
     try {
-      // Format payload
+      // Format payload (Convert empty strings to null for optional fields)
       const payload = {
           material_id: formData.material_id,
           type: formData.type,
           quantity: formData.quantity,
-          requester: formData.requester,
-          vehicle_prefix: formData.vehicle_prefix,
-          guide_number: formData.guide_number, // Opcional
+          requester: formData.requester.trim() || null,
+          vehicle_prefix: formData.vehicle_prefix.trim() || null,
+          guide_number: formData.guide_number,
           created_at: formData.created_at
       };
 
@@ -106,12 +146,13 @@ export const MovementsTab: React.FC = () => {
         if (error) throw error;
         alert("Movimentação atualizada.");
       } else {
-        // Insert Movement
         const { error: movError } = await supabase.from('movements').insert([payload]);
-        if (movError) throw movError;
-        
-        // REMOVIDO: Atualização manual de estoque.
-        // Agora confiamos no TRIGGER do banco de dados para atualizar a tabela materials.
+        if (movError) {
+             if (movError.message.includes("null value in column")) {
+                 throw new Error("O banco de dados recusou campos vazios. Execute o script SQL na ajuda para corrigir as permissões.");
+             }
+             throw movError;
+        }
       }
 
       setIsAdding(false);
@@ -151,12 +192,10 @@ export const MovementsTab: React.FC = () => {
       let valB: any = b[sortConfig.key as keyof Movement];
 
       if (sortConfig.key === 'material_name') {
-         // Field added dynamically, handle specially if undefined
          valA = a.material_name || '';
          valB = b.material_name || '';
       }
 
-      // String comparison case insensitive
       if (typeof valA === 'string') valA = valA.toLowerCase();
       if (typeof valB === 'string') valB = valB.toLowerCase();
 
@@ -201,6 +240,48 @@ export const MovementsTab: React.FC = () => {
         </div>
       )}
 
+      {/* MODAL DE NOVO MATERIAL (DENTRO DA MOVIMENTAÇÃO) */}
+      {isAddingMaterial && (
+          <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-[60]">
+              <div className="bg-white p-5 rounded-lg shadow-2xl w-96 border-l-4 border-pmmg-accent">
+                  <h4 className="text-lg font-bold mb-3 text-pmmg-primary">Cadastrar Novo Material</h4>
+                  <div className="space-y-3">
+                      <div>
+                          <label className="text-sm font-semibold">Nome do Material</label>
+                          <input 
+                              className="w-full border p-2 rounded focus:ring-2 focus:ring-pmmg-primary outline-none"
+                              value={newMaterialData.name}
+                              onChange={e => setNewMaterialData({...newMaterialData, name: e.target.value})}
+                              autoFocus
+                          />
+                      </div>
+                      <div>
+                          <label className="text-sm font-semibold">Unidade (Ex: Unidade, cx, kg)</label>
+                          <input 
+                              className="w-full border p-2 rounded focus:ring-2 focus:ring-pmmg-primary outline-none"
+                              value={newMaterialData.unit}
+                              onChange={e => setNewMaterialData({...newMaterialData, unit: e.target.value})}
+                          />
+                      </div>
+                      <div className="flex justify-end gap-2 mt-4">
+                          <button 
+                              onClick={() => setIsAddingMaterial(false)}
+                              className="px-3 py-1 text-gray-600 hover:bg-gray-100 rounded"
+                          >
+                              Cancelar
+                          </button>
+                          <button 
+                              onClick={handleSaveNewMaterial}
+                              className="px-3 py-1 bg-pmmg-primary text-white rounded hover:bg-[#3E3223]"
+                          >
+                              Criar e Selecionar
+                          </button>
+                      </div>
+                  </div>
+              </div>
+          </div>
+      )}
+
       {(isAdding || isEditing) && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 overflow-y-auto">
           <div className="bg-white p-6 rounded-lg w-full max-w-2xl shadow-xl my-8 border-t-4 border-pmmg-primary">
@@ -210,16 +291,26 @@ export const MovementsTab: React.FC = () => {
              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="col-span-2">
                   <label className="block text-sm font-bold text-gray-700">Material <span className="text-red-500">*</span></label>
-                  <select 
-                    className="w-full border p-2 rounded mt-1 focus:ring-2 focus:ring-pmmg-primary outline-none"
-                    value={formData.material_id}
-                    onChange={e => setFormData({...formData, material_id: e.target.value})}
-                  >
-                    <option value="">Selecione um material...</option>
-                    {materials.map(m => (
-                      <option key={m.id} value={m.id}>{m.name} (Atual: {m.quantity})</option>
-                    ))}
-                  </select>
+                  <div className="flex gap-2">
+                    <select 
+                        className="w-full border p-2 rounded mt-1 focus:ring-2 focus:ring-pmmg-primary outline-none"
+                        value={formData.material_id}
+                        onChange={e => setFormData({...formData, material_id: e.target.value})}
+                    >
+                        <option value="">Selecione um material...</option>
+                        {materials.map(m => (
+                        <option key={m.id} value={m.id}>{m.name} ({m.quantity} {m.unit || 'un'})</option>
+                        ))}
+                    </select>
+                    <button 
+                        onClick={() => setIsAddingMaterial(true)}
+                        className="mt-1 px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 flex items-center gap-2 text-sm font-bold whitespace-nowrap shadow-sm transition-colors"
+                        title="Criar novo material"
+                    >
+                        <PackagePlus size={16} />
+                        Cadastrar Novo Material
+                    </button>
+                  </div>
                 </div>
 
                 <div>
@@ -266,7 +357,11 @@ export const MovementsTab: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-bold text-gray-700">Responsável pela retirada <span className="text-red-500">*</span></label>
+                  <label className="block text-sm font-bold text-gray-700">
+                      Responsável 
+                      {formData.type === MovementType.EXIT && <span className="text-red-500"> *</span>}
+                      {formData.type === MovementType.ENTRY && <span className="text-gray-400 font-normal text-xs ml-1">(Opcional na Entrada)</span>}
+                  </label>
                   <input 
                     type="text" 
                     className="w-full border p-2 rounded mt-1 focus:ring-2 focus:ring-pmmg-primary outline-none"
@@ -277,7 +372,11 @@ export const MovementsTab: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-bold text-gray-700">Prefixo Viatura <span className="text-red-500">*</span></label>
+                  <label className="block text-sm font-bold text-gray-700">
+                      Prefixo Viatura
+                      {formData.type === MovementType.EXIT && <span className="text-red-500"> *</span>}
+                      {formData.type === MovementType.ENTRY && <span className="text-gray-400 font-normal text-xs ml-1">(Opcional na Entrada)</span>}
+                  </label>
                   <input 
                     type="text" 
                     className="w-full border p-2 rounded mt-1 focus:ring-2 focus:ring-pmmg-primary outline-none"
@@ -356,10 +455,16 @@ export const MovementsTab: React.FC = () => {
                       </span>
                     )}
                   </td>
-                  <td className="p-4 font-medium text-gray-800">{m.material_name}</td>
+                  <td className="p-4 font-medium text-gray-800">
+                    {m.material_name} 
+                    {/* Exibe unidade na tabela se disponível */}
+                    {(m as any).material_unit && <span className="text-xs text-gray-500 ml-1">({(m as any).material_unit})</span>}
+                  </td>
                   <td className="p-4 text-center font-mono font-bold">{m.quantity}</td>
-                  <td className="p-4 text-sm text-gray-700">{m.requester}</td>
-                  <td className="p-4 text-sm font-mono bg-gray-50 rounded text-center w-fit text-gray-800">{m.vehicle_prefix}</td>
+                  <td className="p-4 text-sm text-gray-700">{m.requester || '-'}</td>
+                  <td className="p-4 text-sm font-mono text-center w-fit text-gray-800">
+                      {m.vehicle_prefix ? <span className="bg-gray-50 rounded px-2 py-1">{m.vehicle_prefix}</span> : '-'}
+                  </td>
                   <td className="p-4 text-sm text-gray-500">{m.guide_number || '-'}</td>
                   <td className="p-4 text-right">
                     <div className="flex justify-end gap-2">
@@ -370,8 +475,8 @@ export const MovementsTab: React.FC = () => {
                             material_id: m.material_id,
                             type: m.type,
                             quantity: m.quantity,
-                            requester: m.requester,
-                            vehicle_prefix: m.vehicle_prefix,
+                            requester: m.requester || '',
+                            vehicle_prefix: m.vehicle_prefix || '',
                             guide_number: m.guide_number,
                             created_at: m.created_at ? new Date(m.created_at).toISOString().split('T')[0] : ''
                           });
