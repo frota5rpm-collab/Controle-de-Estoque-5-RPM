@@ -1,20 +1,40 @@
 import React, { useState, useEffect } from 'react';
-import { Package, Truck, History } from 'lucide-react';
+import { Package, Truck, History, LogOut } from 'lucide-react';
 import { InventoryTab } from './components/InventoryTab';
 import { MovementsTab } from './components/MovementsTab';
 import { FleetTab } from './components/FleetTab';
 import { checkConnection } from './lib/supabase';
 import { DatabaseSetup } from './components/DatabaseSetup';
+import { LoginScreen } from './components/LoginScreen';
 import { Tab } from './types';
 
 function App() {
   const [activeTab, setActiveTab] = useState<Tab>('inventory');
   const [isConnected, setIsConnected] = useState<boolean | null>(null);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
 
   useEffect(() => {
+    // Verifica conexão com banco
     checkConnection().then(setIsConnected);
+
+    // Verifica se já está logado (Sessão persistente)
+    const storedAuth = localStorage.getItem('pmmg_auth');
+    if (storedAuth === 'true') {
+      setIsAuthenticated(true);
+    }
   }, []);
 
+  const handleLogout = () => {
+    localStorage.removeItem('pmmg_auth');
+    setIsAuthenticated(false);
+  };
+
+  // 1. Se não estiver autenticado, mostra tela de login
+  if (!isAuthenticated) {
+    return <LoginScreen onLoginSuccess={() => setIsAuthenticated(true)} />;
+  }
+
+  // 2. Se banco não conectar (após login), mostra setup
   if (isConnected === false) {
     return <DatabaseSetup />;
   }
@@ -45,44 +65,55 @@ function App() {
           </div>
         </div>
         
-        {/* Navigation Tabs */}
+        {/* Navigation Tabs & Logout */}
         <div className="bg-[#4A3B2A]/90 backdrop-blur-sm text-white/90">
-          <div className="container mx-auto px-4 flex gap-1 overflow-x-auto">
-             {/* 1. ESTOQUE (Esquerda) */}
-             <button
-                onClick={() => setActiveTab('inventory')}
-                className={`flex items-center gap-2 px-6 py-3 border-b-4 transition-all whitespace-nowrap font-bold uppercase tracking-wider text-sm ${
-                  activeTab === 'inventory' 
-                  ? 'border-[#C5A059] text-[#C5A059] bg-black/20' 
-                  : 'border-transparent hover:bg-white/5 text-white/70 hover:text-white'
-                }`}
-             >
-               <Package size={18} /> Estoque
-             </button>
+          <div className="container mx-auto px-4 flex justify-between items-center">
+            <div className="flex gap-1 overflow-x-auto">
+              {/* 1. ESTOQUE (Esquerda) */}
+              <button
+                  onClick={() => setActiveTab('inventory')}
+                  className={`flex items-center gap-2 px-6 py-3 border-b-4 transition-all whitespace-nowrap font-bold uppercase tracking-wider text-sm ${
+                    activeTab === 'inventory' 
+                    ? 'border-[#C5A059] text-[#C5A059] bg-black/20' 
+                    : 'border-transparent hover:bg-white/5 text-white/70 hover:text-white'
+                  }`}
+              >
+                <Package size={18} /> Estoque
+              </button>
 
-             {/* 2. MOVIMENTAÇÕES (Meio) */}
-             <button
-                onClick={() => setActiveTab('movements')}
-                className={`flex items-center gap-2 px-6 py-3 border-b-4 transition-all whitespace-nowrap font-bold uppercase tracking-wider text-sm ${
-                  activeTab === 'movements' 
-                  ? 'border-[#C5A059] text-[#C5A059] bg-black/20' 
-                  : 'border-transparent hover:bg-white/5 text-white/70 hover:text-white'
-                }`}
-             >
-               <History size={18} /> Movimentações
-             </button>
+              {/* 2. MOVIMENTAÇÕES (Meio) */}
+              <button
+                  onClick={() => setActiveTab('movements')}
+                  className={`flex items-center gap-2 px-6 py-3 border-b-4 transition-all whitespace-nowrap font-bold uppercase tracking-wider text-sm ${
+                    activeTab === 'movements' 
+                    ? 'border-[#C5A059] text-[#C5A059] bg-black/20' 
+                    : 'border-transparent hover:bg-white/5 text-white/70 hover:text-white'
+                  }`}
+              >
+                <History size={18} /> Movimentações
+              </button>
 
-             {/* 3. MAPA CARGA (Direita) */}
-             <button
-                onClick={() => setActiveTab('fleet')}
-                className={`flex items-center gap-2 px-6 py-3 border-b-4 transition-all whitespace-nowrap font-bold uppercase tracking-wider text-sm ${
-                  activeTab === 'fleet' 
-                  ? 'border-[#C5A059] text-[#C5A059] bg-black/20' 
-                  : 'border-transparent hover:bg-white/5 text-white/70 hover:text-white'
-                }`}
-             >
-               <Truck size={18} /> Mapa Carga
-             </button>
+              {/* 3. MAPA CARGA (Direita) */}
+              <button
+                  onClick={() => setActiveTab('fleet')}
+                  className={`flex items-center gap-2 px-6 py-3 border-b-4 transition-all whitespace-nowrap font-bold uppercase tracking-wider text-sm ${
+                    activeTab === 'fleet' 
+                    ? 'border-[#C5A059] text-[#C5A059] bg-black/20' 
+                    : 'border-transparent hover:bg-white/5 text-white/70 hover:text-white'
+                  }`}
+              >
+                <Truck size={18} /> Mapa Carga
+              </button>
+            </div>
+
+            {/* Botão Sair */}
+            <button 
+              onClick={handleLogout}
+              className="flex items-center gap-2 px-4 py-2 text-red-200 hover:text-red-100 hover:bg-red-900/30 rounded transition-colors text-sm font-semibold ml-4"
+              title="Sair do sistema"
+            >
+              <LogOut size={18} /> <span className="hidden sm:inline">Sair</span>
+            </button>
           </div>
         </div>
       </header>
