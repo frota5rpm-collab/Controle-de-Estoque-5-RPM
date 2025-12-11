@@ -4,7 +4,7 @@ import { Material } from '../types';
 import { Plus, Edit, FileDown, FileUp, AlertTriangle, Search, ArrowUpDown, ArrowUp, ArrowDown, XCircle } from 'lucide-react';
 import { exportToExcel, parseExcel } from '../utils/excel';
 
-type SortKey = 'name' | 'quantity' | 'status';
+type SortKey = 'name' | 'quantity' | 'status' | 'unit';
 
 export const InventoryTab: React.FC = () => {
   const [materials, setMaterials] = useState<Material[]>([]);
@@ -23,7 +23,7 @@ export const InventoryTab: React.FC = () => {
   const [isAdding, setIsAdding] = useState(false);
   
   // Form states
-  const [formData, setFormData] = useState<Partial<Material>>({ name: '', quantity: 0 });
+  const [formData, setFormData] = useState<Partial<Material>>({ name: '', quantity: 0, unit: 'Unidade' });
 
   const fetchMaterials = async () => {
     setLoading(true);
@@ -52,12 +52,12 @@ export const InventoryTab: React.FC = () => {
     
     try {
       if (isEditing && isEditing.id) {
-        // Atualiza APENAS o nome. Quantidade é controlada via Movimentações ou na criação.
+        // Atualiza nome e unidade. Quantidade é via Movimentações.
         const { error } = await supabase
           .from('materials')
           .update({ 
             name: formData.name, 
-            // quantity: formData.quantity // Removido da edição direta para garantir integridade
+            unit: formData.unit 
           })
           .eq('id', isEditing.id);
         if (error) throw error;
@@ -67,13 +67,14 @@ export const InventoryTab: React.FC = () => {
           .from('materials')
           .insert([{ 
             name: formData.name, 
-            quantity: formData.quantity
+            quantity: formData.quantity,
+            unit: formData.unit || 'Unidade'
           }]);
         if (error) throw error;
       }
       setIsEditing(null);
       setIsAdding(false);
-      setFormData({ name: '', quantity: 0 });
+      setFormData({ name: '', quantity: 0, unit: 'Unidade' });
       fetchMaterials();
     } catch (err: any) {
       alert(`Erro ao salvar: ${err.message || JSON.stringify(err)}`);
@@ -98,6 +99,7 @@ export const InventoryTab: React.FC = () => {
         const formattedData = data.map((row: any) => ({
           name: findValue(row, ['material', 'nome', 'name', 'item', 'descricao']),
           quantity: Number(findValue(row, ['quantidade', 'qtd', 'quantity', 'saldo', 'quant']) || 0),
+          unit: findValue(row, ['unidade', 'medida', 'unit', 'und', 'tipo']) || 'Unidade'
         })).filter(r => r.name); // Filtra linhas que tenham pelo menos nome
 
         if (formattedData.length > 0) {
@@ -147,7 +149,6 @@ export const InventoryTab: React.FC = () => {
       let valA: any = a[sortConfig.key as keyof Material];
       let valB: any = b[sortConfig.key as keyof Material];
 
-      // Lógica específica para Status
       if (sortConfig.key === 'status') {
          const weight = (m: Material) => {
              const s = getStatus(m);
@@ -158,10 +159,9 @@ export const InventoryTab: React.FC = () => {
          valA = weight(a);
          valB = weight(b);
       } 
-      // Lógica específica para Nome (case insensitive)
-      else if (sortConfig.key === 'name') {
-         valA = a.name.toLowerCase();
-         valB = b.name.toLowerCase();
+      else if (sortConfig.key === 'name' || sortConfig.key === 'unit') {
+         valA = (valA || '').toLowerCase();
+         valB = (valB || '').toLowerCase();
       }
 
       if (valA < valB) return sortConfig.direction === 'ASC' ? -1 : 1;
@@ -209,7 +209,7 @@ export const InventoryTab: React.FC = () => {
             <FileDown size={16} /> <span className="hidden sm:inline">Exportar</span>
           </button>
           <button 
-            onClick={() => { setIsAdding(true); setFormData({ name: '', quantity: 0 }); }}
+            onClick={() => { setIsAdding(true); setFormData({ name: '', quantity: 0, unit: 'Unidade' }); }}
             className="flex items-center gap-2 px-3 py-2 bg-pmmg-primary text-white rounded-md hover:bg-[#3E3223] transition-colors shadow-sm"
           >
             <Plus size={16} /> Novo Material
@@ -237,6 +237,16 @@ export const InventoryTab: React.FC = () => {
                   value={formData.name} 
                   onChange={e => setFormData({...formData, name: e.target.value})}
                   autoFocus
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-1">Unidade de Medida</label>
+                <input 
+                  type="text" 
+                  className="w-full border p-2 rounded focus:ring-2 focus:ring-pmmg-primary outline-none" 
+                  value={formData.unit} 
+                  onChange={e => setFormData({...formData, unit: e.target.value})}
+                  placeholder="Ex: Unidade, Litros, Caixa, Kg..."
                 />
               </div>
               <div>
@@ -283,6 +293,12 @@ export const InventoryTab: React.FC = () => {
                 <div className="flex items-center gap-1">Material {renderSortIcon('name')}</div>
               </th>
               <th 
+                className="p-4 font-semibold border-b text-center cursor-pointer hover:bg-gray-200 transition-colors"
+                onClick={() => handleSort('unit')}
+              >
+                <div className="flex items-center justify-center gap-1">Unidade {renderSortIcon('unit')}</div>
+              </th>
+              <th 
                 className="p-4 font-semibold border-b text-center w-32 cursor-pointer hover:bg-gray-200 transition-colors"
                 onClick={() => handleSort('quantity')}
               >
@@ -299,15 +315,16 @@ export const InventoryTab: React.FC = () => {
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={4} className="p-8 text-center text-gray-500">Carregando estoque...</td></tr>
+              <tr><td colSpan={5} className="p-8 text-center text-gray-500">Carregando estoque...</td></tr>
             ) : filteredMaterials.length === 0 ? (
-              <tr><td colSpan={4} className="p-8 text-center text-gray-500">Nenhum material encontrado.</td></tr>
+              <tr><td colSpan={5} className="p-8 text-center text-gray-500">Nenhum material encontrado.</td></tr>
             ) : (
               filteredMaterials.map(item => {
                 const status = getStatus(item);
                 return (
                   <tr key={item.id} className="border-b hover:bg-amber-50/50 transition-colors">
                     <td className="p-4 font-medium text-gray-800">{item.name}</td>
+                    <td className="p-4 text-center text-gray-600 text-sm">{item.unit || '-'}</td>
                     <td className="p-4 text-center font-mono text-lg font-bold text-gray-700">{item.quantity}</td>
                     <td className="p-4 text-center">
                       {status === 'NONE' && (

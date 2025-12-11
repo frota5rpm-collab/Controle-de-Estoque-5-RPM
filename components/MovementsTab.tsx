@@ -247,7 +247,7 @@ export const MovementsTab: React.FC = () => {
                   <h4 className="text-lg font-bold mb-3 text-pmmg-primary">Cadastrar Novo Material</h4>
                   <div className="space-y-3">
                       <div>
-                          <label className="text-sm font-semibold">Nome do Material</label>
+                          <label className="text-sm font-bold text-gray-700">Nome do Material</label>
                           <input 
                               className="w-full border p-2 rounded focus:ring-2 focus:ring-pmmg-primary outline-none"
                               value={newMaterialData.name}
@@ -256,11 +256,12 @@ export const MovementsTab: React.FC = () => {
                           />
                       </div>
                       <div>
-                          <label className="text-sm font-semibold">Unidade (Ex: Unidade, cx, kg)</label>
+                          <label className="text-sm font-bold text-gray-700">Unidade de Medida</label>
                           <input 
                               className="w-full border p-2 rounded focus:ring-2 focus:ring-pmmg-primary outline-none"
                               value={newMaterialData.unit}
                               onChange={e => setNewMaterialData({...newMaterialData, unit: e.target.value})}
+                              placeholder="Ex: Unidade, Litros, Caixa, Kg..."
                           />
                       </div>
                       <div className="flex justify-end gap-2 mt-4">
