@@ -293,16 +293,16 @@ export const InventoryTab: React.FC = () => {
                 <div className="flex items-center gap-1">Material {renderSortIcon('name')}</div>
               </th>
               <th 
-                className="p-4 font-semibold border-b text-center cursor-pointer hover:bg-gray-200 transition-colors"
-                onClick={() => handleSort('unit')}
-              >
-                <div className="flex items-center justify-center gap-1">Unidade {renderSortIcon('unit')}</div>
-              </th>
-              <th 
                 className="p-4 font-semibold border-b text-center w-32 cursor-pointer hover:bg-gray-200 transition-colors"
                 onClick={() => handleSort('quantity')}
               >
                  <div className="flex items-center justify-center gap-1">Qtd {renderSortIcon('quantity')}</div>
+              </th>
+              <th 
+                className="p-4 font-semibold border-b text-center cursor-pointer hover:bg-gray-200 transition-colors"
+                onClick={() => handleSort('unit')}
+              >
+                <div className="flex items-center justify-center gap-1">Unidade {renderSortIcon('unit')}</div>
               </th>
               <th 
                 className="p-4 font-semibold border-b text-center w-40 cursor-pointer hover:bg-gray-200 transition-colors"
@@ -324,8 +324,8 @@ export const InventoryTab: React.FC = () => {
                 return (
                   <tr key={item.id} className="border-b hover:bg-amber-50/50 transition-colors">
                     <td className="p-4 font-medium text-gray-800">{item.name}</td>
-                    <td className="p-4 text-center text-gray-600 text-sm">{item.unit || '-'}</td>
                     <td className="p-4 text-center font-mono text-lg font-bold text-gray-700">{item.quantity}</td>
+                    <td className="p-4 text-center text-gray-600 text-sm">{item.unit || '-'}</td>
                     <td className="p-4 text-center">
                       {status === 'NONE' && (
                         <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold bg-red-100 text-red-800 border border-red-200">
