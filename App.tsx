@@ -103,10 +103,6 @@ function App() {
           )}
         </div>
       </main>
-      
-      <footer className="bg-[#4A3B2A] text-center py-4 text-[#d4c5a3] text-sm border-t border-[#C5A059]/30 mt-auto">
-        &copy; {new Date().getFullYear()} Controle de Estoque - 5ª RPM. Polícia Militar de Minas Gerais.
-      </footer>
     </div>
   );
 }
