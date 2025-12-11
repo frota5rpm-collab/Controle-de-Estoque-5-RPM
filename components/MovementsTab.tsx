@@ -106,13 +106,13 @@ export const MovementsTab: React.FC = () => {
     }
 
     try {
-      // Format payload
+      // Format payload - Garante que strings vazias virem NULL para o banco
       const payload = {
           material_id: formData.material_id,
           type: formData.type,
           quantity: formData.quantity,
-          requester: formData.requester || null, // Envia null se vazio na Entrada
-          vehicle_prefix: formData.vehicle_prefix || null, // Envia null se vazio na Entrada
+          requester: formData.requester ? formData.requester.trim() || null : null, 
+          vehicle_prefix: formData.vehicle_prefix ? formData.vehicle_prefix.trim() || null : null, 
           guide_number: formData.guide_number, 
           created_at: formData.created_at
       };
@@ -136,7 +136,12 @@ export const MovementsTab: React.FC = () => {
       fetchData();
     } catch (err: any) {
       console.error(err);
-      alert(`Erro ao salvar: ${err.message || JSON.stringify(err)}`);
+      // Tratamento de erro específico para campos obrigatórios no banco
+      if (err.message && (err.message.includes('requester') || err.message.includes('vehicle_prefix')) && err.message.includes('null value')) {
+          alert("ERRO DE BANCO DE DADOS:\n\nO Supabase recusou a entrada vazia. Você precisa executar o script SQL para tornar 'Responsável' e 'Prefixo' opcionais.\n\nCopie o código na tela de 'Ajuda do Banco de Dados' e rode no Supabase.");
+      } else {
+          alert(`Erro ao salvar: ${err.message || JSON.stringify(err)}`);
+      }
     }
   };
 
@@ -208,6 +213,10 @@ export const MovementsTab: React.FC = () => {
 
       if (typeof valA === 'string') valA = valA.toLowerCase();
       if (typeof valB === 'string') valB = valB.toLowerCase();
+
+      // Handle nulls
+      valA = valA || '';
+      valB = valB || '';
 
       if (valA < valB) return sortConfig.direction === 'ASC' ? -1 : 1;
       if (valA > valB) return sortConfig.direction === 'ASC' ? 1 : -1;
@@ -365,7 +374,7 @@ export const MovementsTab: React.FC = () => {
                   </label>
                   <input 
                     type="text" 
-                    className="w-full border p-2 rounded mt-1 focus:ring-2 focus:ring-pmmg-primary outline-none"
+                    className={`w-full border p-2 rounded mt-1 focus:ring-2 focus:ring-pmmg-primary outline-none ${formData.type === MovementType.ENTRY ? 'bg-gray-50' : ''}`}
                     placeholder={formData.type === MovementType.ENTRY ? "Opcional na entrada" : "Nome do militar/funcionário"}
                     value={formData.requester}
                     onChange={e => setFormData({...formData, requester: e.target.value})}
@@ -378,7 +387,7 @@ export const MovementsTab: React.FC = () => {
                   </label>
                   <input 
                     type="text" 
-                    className="w-full border p-2 rounded mt-1 focus:ring-2 focus:ring-pmmg-primary outline-none"
+                    className={`w-full border p-2 rounded mt-1 focus:ring-2 focus:ring-pmmg-primary outline-none ${formData.type === MovementType.ENTRY ? 'bg-gray-50' : ''}`}
                     placeholder={formData.type === MovementType.ENTRY ? "Opcional na entrada" : "Ex: VP-1234"}
                     value={formData.vehicle_prefix}
                     onChange={e => setFormData({...formData, vehicle_prefix: e.target.value})}

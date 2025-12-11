@@ -19,8 +19,8 @@ export interface Movement {
   material_unit?: string; // Joined field
   type: MovementType;
   quantity: number;
-  requester: string;
-  vehicle_prefix: string;
+  requester: string | null;
+  vehicle_prefix: string | null;
   guide_number: string;
   created_at: string; // Acts as movement date
 }
