@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { Material, Movement, MovementType } from '../types';
-import { Plus, ArrowDownCircle, ArrowUpCircle, FileDown, Search, Edit, XCircle, ArrowUpDown, ArrowUp, ArrowDown, PackagePlus } from 'lucide-react';
+import { Plus, ArrowDownCircle, ArrowUpCircle, FileDown, Search, Edit, XCircle, ArrowUpDown, ArrowUp, ArrowDown, PackagePlus, MessageSquare } from 'lucide-react';
 import { exportToExcel } from '../utils/excel';
 
 type SortKey = 'created_at' | 'type' | 'material_name' | 'quantity' | 'requester' | 'vehicle_prefix' | 'guide_number';
@@ -33,6 +33,7 @@ export const MovementsTab: React.FC = () => {
     requester: '',
     vehicle_prefix: '',
     guide_number: '',
+    observation: '',
     created_at: new Date().toISOString().split('T')[0]
   };
   const [formData, setFormData] = useState(initialForm);
@@ -134,6 +135,7 @@ export const MovementsTab: React.FC = () => {
           requester: formData.requester.trim() || null,
           vehicle_prefix: formData.vehicle_prefix.trim() || null,
           guide_number: formData.guide_number,
+          observation: formData.observation,
           created_at: formData.created_at
       };
 
@@ -206,8 +208,8 @@ export const MovementsTab: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col md:flex-row justify-between items-center gap-4 bg-white p-4 rounded-lg shadow-sm border-l-4 border-pmmg-primary">
-        <div className="relative w-full md:w-96">
+      <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4 bg-white p-4 rounded-lg shadow-sm border-l-4 border-pmmg-primary">
+        <div className="relative w-full xl:w-96">
            <Search className="absolute left-2 top-2.5 h-4 w-4 text-gray-400" />
            <input
               type="text"
@@ -217,19 +219,27 @@ export const MovementsTab: React.FC = () => {
               onChange={e => setSearch(e.target.value)}
             />
         </div>
-        <div className="flex gap-2">
-           <button 
-            onClick={() => exportToExcel(movements, 'Movimentacoes_Frota_5RPM')}
-            className="flex items-center gap-2 px-3 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors shadow-sm"
-          >
-            <FileDown size={16} /> Exportar
-          </button>
-          <button 
-            onClick={() => { setIsAdding(true); setFormData(initialForm); }}
-            className="flex items-center gap-2 px-3 py-2 bg-pmmg-primary text-white rounded-md hover:bg-[#3E3223] transition-colors shadow-sm"
-          >
-            <Plus size={16} /> Nova Movimentação
-          </button>
+        
+        {/* Agrupamento de Botões e Mensagem de Aviso */}
+        <div className="flex flex-col items-end gap-2 w-full xl:w-auto">
+            <div className="flex gap-2">
+               <button 
+                onClick={() => exportToExcel(movements, 'Movimentacoes_Frota_5RPM')}
+                className="flex items-center gap-2 px-3 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors shadow-sm"
+              >
+                <FileDown size={16} /> Exportar
+              </button>
+              <button 
+                onClick={() => { setIsAdding(true); setFormData(initialForm); }}
+                className="flex items-center gap-2 px-3 py-2 bg-pmmg-primary text-white rounded-md hover:bg-[#3E3223] transition-colors shadow-sm"
+              >
+                <Plus size={16} /> Nova Movimentação
+              </button>
+            </div>
+            {/* MENSAGEM DE AVISO SOLICITADA */}
+            <p className="text-xs text-red-600 font-bold italic text-right max-w-md">
+                "Em caso de lançamento errado, deverá ser feito um novo lançamento e inserir o motivo nas observações"
+            </p>
         </div>
       </div>
 
@@ -386,6 +396,16 @@ export const MovementsTab: React.FC = () => {
                     onChange={e => setFormData({...formData, vehicle_prefix: e.target.value})}
                   />
                 </div>
+
+                <div className="col-span-2">
+                    <label className="block text-sm font-bold text-gray-700">Observações</label>
+                    <textarea 
+                        className="w-full border p-2 rounded mt-1 focus:ring-2 focus:ring-pmmg-primary outline-none resize-none h-20"
+                        placeholder="Motivo da correção ou detalhes adicionais..."
+                        value={formData.observation || ''}
+                        onChange={e => setFormData({...formData, observation: e.target.value})}
+                    />
+                </div>
              </div>
 
              <div className="flex justify-end gap-2 mt-6">
@@ -431,14 +451,15 @@ export const MovementsTab: React.FC = () => {
               <th className="p-4 font-semibold border-b cursor-pointer hover:bg-gray-200" onClick={() => handleSort('guide_number')}>
                 <div className="flex items-center gap-1">Nº Guia {renderSortIcon('guide_number')}</div>
               </th>
+              <th className="p-4 font-semibold border-b text-center">Obs</th>
               <th className="p-4 font-semibold border-b text-right">Ações</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
-               <tr><td colSpan={8} className="p-8 text-center text-gray-500">Carregando histórico...</td></tr>
+               <tr><td colSpan={9} className="p-8 text-center text-gray-500">Carregando histórico...</td></tr>
             ) : filteredMovements.length === 0 ? (
-               <tr><td colSpan={8} className="p-8 text-center text-gray-500">Nenhuma movimentação encontrada.</td></tr>
+               <tr><td colSpan={9} className="p-8 text-center text-gray-500">Nenhuma movimentação encontrada.</td></tr>
             ) : (
               filteredMovements.map(m => (
                 <tr key={m.id} className="border-b hover:bg-amber-50/50 transition-colors">
@@ -467,6 +488,16 @@ export const MovementsTab: React.FC = () => {
                       {m.vehicle_prefix ? <span className="bg-gray-50 rounded px-2 py-1">{m.vehicle_prefix}</span> : '-'}
                   </td>
                   <td className="p-4 text-sm text-gray-500">{m.guide_number || '-'}</td>
+                  <td className="p-4 text-center">
+                      {m.observation ? (
+                          <div className="group relative inline-block">
+                              <MessageSquare size={18} className="text-blue-500 cursor-help" />
+                              <div className="absolute bottom-full right-0 mb-2 w-48 p-2 bg-gray-800 text-white text-xs rounded hidden group-hover:block z-50 shadow-lg">
+                                  {m.observation}
+                              </div>
+                          </div>
+                      ) : '-'}
+                  </td>
                   <td className="p-4 text-right">
                     <div className="flex justify-end gap-2">
                       <button 
@@ -479,6 +510,7 @@ export const MovementsTab: React.FC = () => {
                             requester: m.requester || '',
                             vehicle_prefix: m.vehicle_prefix || '',
                             guide_number: m.guide_number,
+                            observation: m.observation || '',
                             created_at: m.created_at ? new Date(m.created_at).toISOString().split('T')[0] : ''
                           });
                         }}

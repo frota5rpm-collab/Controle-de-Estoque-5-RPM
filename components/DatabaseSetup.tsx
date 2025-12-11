@@ -4,7 +4,7 @@ export const DatabaseSetup: React.FC = () => {
   const sql = `
 -- Execute este SQL no Editor SQL do seu projeto Supabase para configurar o banco corretamente
 
--- 1. ALTERAÇÕES PARA PERMITIR ENTRADA SIMPLIFICADA (NOVO!)
+-- 1. ALTERAÇÕES PARA PERMITIR ENTRADA SIMPLIFICADA E OBSERVAÇÕES
 -- Remove a obrigatoriedade de Responsável e Prefixo
 ALTER TABLE public.movements ALTER COLUMN requester DROP NOT NULL;
 ALTER TABLE public.movements ALTER COLUMN vehicle_prefix DROP NOT NULL;
@@ -14,6 +14,14 @@ DO $$
 BEGIN
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='materials' AND column_name='unit') THEN
         ALTER TABLE public.materials ADD COLUMN unit TEXT DEFAULT 'Unidade';
+    END IF;
+END $$;
+
+-- Garante coluna de observação na tabela de movimentações (NOVO)
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='movements' AND column_name='observation') THEN
+        ALTER TABLE public.movements ADD COLUMN observation TEXT;
     END IF;
 END $$;
 
@@ -43,6 +51,7 @@ CREATE TABLE IF NOT EXISTS public.movements (
     requester TEXT, -- Pode ser nulo na ENTRADA
     vehicle_prefix TEXT, -- Pode ser nulo na ENTRADA
     guide_number TEXT,
+    observation TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
@@ -102,10 +111,10 @@ FOR EACH ROW EXECUTE FUNCTION handle_inventory_update();
   return (
     <div className="fixed inset-0 bg-gray-900 flex items-center justify-center p-4 z-50 text-white overflow-y-auto">
       <div className="bg-gray-800 p-8 rounded-lg max-w-3xl w-full shadow-2xl my-8">
-        <h2 className="text-2xl font-bold mb-4 text-red-400">Configuração Necessária do Banco</h2>
+        <h2 className="text-2xl font-bold mb-4 text-red-400">Atualização do Banco de Dados</h2>
         <p className="mb-4 text-gray-300">
-          Para que as <strong>Entradas não exijam responsável</strong> e para permitir a criação rápida de materiais,
-          você precisa atualizar a estrutura do banco.
+          Para habilitar o campo de <strong>Observações</strong> e garantir o funcionamento das mensagens de erro, 
+          é necessário atualizar a estrutura do banco.
         </p>
         <p className="mb-2 font-semibold">Copie o código SQL abaixo:</p>
         <div className="bg-gray-950 p-4 rounded border border-gray-700 font-mono text-sm overflow-auto max-h-64 mb-4 select-all">

@@ -21,6 +21,7 @@ export interface Movement {
   requester?: string | null; // Agora opcional
   vehicle_prefix?: string | null; // Agora opcional
   guide_number: string;
+  observation?: string; // Novo campo para motivo de erro/correção
   created_at: string; // Acts as movement date
 }
 
