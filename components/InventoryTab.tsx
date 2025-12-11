@@ -4,7 +4,7 @@ import { Material } from '../types';
 import { Plus, Edit, FileDown, FileUp, AlertTriangle, Search, ArrowUpDown, ArrowUp, ArrowDown, XCircle } from 'lucide-react';
 import { exportToExcel, parseExcel } from '../utils/excel';
 
-type SortKey = 'name' | 'quantity' | 'status' | 'unit';
+type SortKey = 'name' | 'quantity' | 'status';
 
 export const InventoryTab: React.FC = () => {
   const [materials, setMaterials] = useState<Material[]>([]);
@@ -23,7 +23,7 @@ export const InventoryTab: React.FC = () => {
   const [isAdding, setIsAdding] = useState(false);
   
   // Form states
-  const [formData, setFormData] = useState<Partial<Material>>({ name: '', quantity: 0, unit: '' });
+  const [formData, setFormData] = useState<Partial<Material>>({ name: '', quantity: 0 });
 
   const fetchMaterials = async () => {
     setLoading(true);
@@ -50,17 +50,14 @@ export const InventoryTab: React.FC = () => {
   const handleSave = async () => {
     if (!formData.name) return;
     
-    // Define unidade padrão se estiver vazia
-    const unitToSave = formData.unit?.trim() || 'Unidade';
-
     try {
       if (isEditing && isEditing.id) {
-        // Atualiza nome e unidade. Quantidade é controlada via Movimentações.
+        // Atualiza APENAS o nome. Quantidade é controlada via Movimentações ou na criação.
         const { error } = await supabase
           .from('materials')
           .update({ 
-            name: formData.name,
-            unit: unitToSave 
+            name: formData.name, 
+            // quantity: formData.quantity // Removido da edição direta para garantir integridade
           })
           .eq('id', isEditing.id);
         if (error) throw error;
@@ -70,14 +67,13 @@ export const InventoryTab: React.FC = () => {
           .from('materials')
           .insert([{ 
             name: formData.name, 
-            quantity: formData.quantity,
-            unit: unitToSave
+            quantity: formData.quantity
           }]);
         if (error) throw error;
       }
       setIsEditing(null);
       setIsAdding(false);
-      setFormData({ name: '', quantity: 0, unit: '' });
+      setFormData({ name: '', quantity: 0 });
       fetchMaterials();
     } catch (err: any) {
       alert(`Erro ao salvar: ${err.message || JSON.stringify(err)}`);
@@ -102,7 +98,6 @@ export const InventoryTab: React.FC = () => {
         const formattedData = data.map((row: any) => ({
           name: findValue(row, ['material', 'nome', 'name', 'item', 'descricao']),
           quantity: Number(findValue(row, ['quantidade', 'qtd', 'quantity', 'saldo', 'quant']) || 0),
-          unit: findValue(row, ['unidade', 'unit', 'medida', 'und']) || 'Unidade'
         })).filter(r => r.name); // Filtra linhas que tenham pelo menos nome
 
         if (formattedData.length > 0) {
@@ -111,7 +106,7 @@ export const InventoryTab: React.FC = () => {
           alert(`${formattedData.length} itens importados com sucesso!`);
           fetchMaterials();
         } else {
-          alert("Nenhum material encontrado no arquivo. Verifique se as colunas estão corretas.");
+          alert("Nenhum material encontrado no arquivo. Verifique se as colunas chamam 'Material' e 'Quantidade'.");
         }
       } catch (err: any) {
         alert(`Erro ao importar: ${err.message || 'Verifique o formato do arquivo.'}`);
@@ -163,10 +158,10 @@ export const InventoryTab: React.FC = () => {
          valA = weight(a);
          valB = weight(b);
       } 
-      // Lógica específica para Nome e Unidade (case insensitive)
-      else if (sortConfig.key === 'name' || sortConfig.key === 'unit') {
-         valA = (valA || '').toLowerCase();
-         valB = (valB || '').toLowerCase();
+      // Lógica específica para Nome (case insensitive)
+      else if (sortConfig.key === 'name') {
+         valA = a.name.toLowerCase();
+         valB = b.name.toLowerCase();
       }
 
       if (valA < valB) return sortConfig.direction === 'ASC' ? -1 : 1;
@@ -214,7 +209,7 @@ export const InventoryTab: React.FC = () => {
             <FileDown size={16} /> <span className="hidden sm:inline">Exportar</span>
           </button>
           <button 
-            onClick={() => { setIsAdding(true); setFormData({ name: '', quantity: 0, unit: '' }); }}
+            onClick={() => { setIsAdding(true); setFormData({ name: '', quantity: 0 }); }}
             className="flex items-center gap-2 px-3 py-2 bg-pmmg-primary text-white rounded-md hover:bg-[#3E3223] transition-colors shadow-sm"
           >
             <Plus size={16} /> Novo Material
@@ -244,34 +239,20 @@ export const InventoryTab: React.FC = () => {
                   autoFocus
                 />
               </div>
-              
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                    <label className="block text-sm font-bold text-gray-700 mb-1">Unidade</label>
-                    <input 
-                    type="text" 
-                    placeholder="Ex: Un, Litros, Cx"
-                    className="w-full border p-2 rounded focus:ring-2 focus:ring-pmmg-primary outline-none" 
-                    value={formData.unit} 
-                    onChange={e => setFormData({...formData, unit: e.target.value})}
-                    />
-                </div>
-                <div>
-                    <label className="block text-sm font-bold text-gray-700 mb-1">
-                    Quantidade
-                    {isEditing && <span className="text-xs text-red-500 ml-2 font-normal">(Bloqueado)</span>}
-                    </label>
-                    <input 
-                    type="number" 
-                    className={`w-full border p-2 rounded ${isEditing ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : 'focus:ring-2 focus:ring-pmmg-primary outline-none'}`}
-                    value={formData.quantity} 
-                    onChange={e => setFormData({...formData, quantity: Number(e.target.value)})}
-                    disabled={!!isEditing} // Desabilita se estiver editando
-                    />
-                </div>
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-1">
+                  Quantidade
+                  {isEditing && <span className="text-xs text-red-500 ml-2 font-normal">(Bloqueado na edição)</span>}
+                </label>
+                <input 
+                  type="number" 
+                  className={`w-full border p-2 rounded ${isEditing ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : 'focus:ring-2 focus:ring-pmmg-primary outline-none'}`}
+                  value={formData.quantity} 
+                  onChange={e => setFormData({...formData, quantity: Number(e.target.value)})}
+                  disabled={!!isEditing} // Desabilita se estiver editando
+                />
+                {isEditing && <p className="text-xs text-gray-500 mt-1">Para alterar a quantidade, realize uma Movimentação (Entrada/Saída).</p>}
               </div>
-              
-              {isEditing && <p className="text-xs text-gray-500 mt-1">Para alterar a quantidade, realize uma Movimentação.</p>}
             </div>
             <div className="flex justify-end gap-2 mt-6">
               <button 
@@ -301,12 +282,6 @@ export const InventoryTab: React.FC = () => {
               >
                 <div className="flex items-center gap-1">Material {renderSortIcon('name')}</div>
               </th>
-               <th 
-                className="p-4 font-semibold border-b text-center cursor-pointer hover:bg-gray-200 transition-colors"
-                onClick={() => handleSort('unit')}
-              >
-                 <div className="flex items-center justify-center gap-1">Unidade {renderSortIcon('unit')}</div>
-              </th>
               <th 
                 className="p-4 font-semibold border-b text-center w-32 cursor-pointer hover:bg-gray-200 transition-colors"
                 onClick={() => handleSort('quantity')}
@@ -324,16 +299,15 @@ export const InventoryTab: React.FC = () => {
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={5} className="p-8 text-center text-gray-500">Carregando estoque...</td></tr>
+              <tr><td colSpan={4} className="p-8 text-center text-gray-500">Carregando estoque...</td></tr>
             ) : filteredMaterials.length === 0 ? (
-              <tr><td colSpan={5} className="p-8 text-center text-gray-500">Nenhum material encontrado.</td></tr>
+              <tr><td colSpan={4} className="p-8 text-center text-gray-500">Nenhum material encontrado.</td></tr>
             ) : (
               filteredMaterials.map(item => {
                 const status = getStatus(item);
                 return (
                   <tr key={item.id} className="border-b hover:bg-amber-50/50 transition-colors">
                     <td className="p-4 font-medium text-gray-800">{item.name}</td>
-                    <td className="p-4 text-center text-sm text-gray-600">{item.unit || 'Unidade'}</td>
                     <td className="p-4 text-center font-mono text-lg font-bold text-gray-700">{item.quantity}</td>
                     <td className="p-4 text-center">
                       {status === 'NONE' && (

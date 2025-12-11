@@ -2,7 +2,6 @@ export interface Material {
   id: string;
   name: string;
   quantity: number;
-  unit: string; // Unidade de medida (Ex: Litros, Peça, Cx)
   min_quantity: number;
   created_at?: string;
 }
@@ -16,11 +15,10 @@ export interface Movement {
   id: string;
   material_id: string;
   material_name?: string; // Joined field
-  material_unit?: string; // Joined field
   type: MovementType;
   quantity: number;
-  requester: string | null;
-  vehicle_prefix: string | null;
+  requester: string;
+  vehicle_prefix: string;
   guide_number: string;
   created_at: string; // Acts as movement date
 }
