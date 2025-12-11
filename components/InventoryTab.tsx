@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { Material } from '../types';
-import { Plus, Edit, FileDown, FileUp, AlertTriangle, Search, ArrowUpDown, ArrowUp, ArrowDown, XCircle } from 'lucide-react';
+import { Edit, FileDown, FileUp, AlertTriangle, Search, ArrowUpDown, ArrowUp, ArrowDown, XCircle } from 'lucide-react';
 import { exportToExcel, parseExcel } from '../utils/excel';
 
 type SortKey = 'name' | 'quantity' | 'status' | 'unit';
@@ -20,7 +20,6 @@ export const InventoryTab: React.FC = () => {
   });
 
   const [isEditing, setIsEditing] = useState<Material | null>(null);
-  const [isAdding, setIsAdding] = useState(false);
   
   // Form states
   const [formData, setFormData] = useState<Partial<Material>>({ name: '', quantity: 0, unit: 'Unidade' });
@@ -50,30 +49,22 @@ export const InventoryTab: React.FC = () => {
   const handleSave = async () => {
     if (!formData.name) return;
     
+    // Bloqueia inserção manual por aqui, permite apenas edição
+    if (!isEditing || !isEditing.id) return;
+
     try {
-      if (isEditing && isEditing.id) {
-        // Atualiza nome e unidade. Quantidade é via Movimentações.
-        const { error } = await supabase
-          .from('materials')
-          .update({ 
-            name: formData.name, 
-            unit: formData.unit 
-          })
-          .eq('id', isEditing.id);
-        if (error) throw error;
-      } else {
-        // Insere novo
-        const { error } = await supabase
-          .from('materials')
-          .insert([{ 
-            name: formData.name, 
-            quantity: formData.quantity,
-            unit: formData.unit || 'Unidade'
-          }]);
-        if (error) throw error;
-      }
+      // Atualiza nome e unidade. Quantidade é via Movimentações.
+      const { error } = await supabase
+        .from('materials')
+        .update({ 
+          name: formData.name, 
+          unit: formData.unit 
+        })
+        .eq('id', isEditing.id);
+
+      if (error) throw error;
+
       setIsEditing(null);
-      setIsAdding(false);
       setFormData({ name: '', quantity: 0, unit: 'Unidade' });
       fetchMaterials();
     } catch (err: any) {
@@ -208,12 +199,7 @@ export const InventoryTab: React.FC = () => {
           >
             <FileDown size={16} /> <span className="hidden sm:inline">Exportar</span>
           </button>
-          <button 
-            onClick={() => { setIsAdding(true); setFormData({ name: '', quantity: 0, unit: 'Unidade' }); }}
-            className="flex items-center gap-2 px-3 py-2 bg-pmmg-primary text-white rounded-md hover:bg-[#3E3223] transition-colors shadow-sm"
-          >
-            <Plus size={16} /> Novo Material
-          </button>
+          {/* Botão Novo Material removido conforme solicitação */}
         </div>
       </div>
 
@@ -224,10 +210,10 @@ export const InventoryTab: React.FC = () => {
         </div>
       )}
 
-      {(isAdding || isEditing) && (
+      {isEditing && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
           <div className="bg-white p-6 rounded-lg w-full max-w-md shadow-2xl border-t-4 border-pmmg-primary">
-            <h3 className="text-xl font-bold mb-4 text-pmmg-primary">{isEditing ? 'Editar Material' : 'Novo Material'}</h3>
+            <h3 className="text-xl font-bold mb-4 text-pmmg-primary">Editar Material</h3>
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-bold text-gray-700 mb-1">Nome do Material</label>
@@ -252,21 +238,21 @@ export const InventoryTab: React.FC = () => {
               <div>
                 <label className="block text-sm font-bold text-gray-700 mb-1">
                   Quantidade
-                  {isEditing && <span className="text-xs text-red-500 ml-2 font-normal">(Bloqueado na edição)</span>}
+                  <span className="text-xs text-red-500 ml-2 font-normal">(Bloqueado na edição)</span>
                 </label>
                 <input 
                   type="number" 
-                  className={`w-full border p-2 rounded ${isEditing ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : 'focus:ring-2 focus:ring-pmmg-primary outline-none'}`}
+                  className="w-full border p-2 rounded bg-gray-100 text-gray-500 cursor-not-allowed"
                   value={formData.quantity} 
                   onChange={e => setFormData({...formData, quantity: Number(e.target.value)})}
-                  disabled={!!isEditing} // Desabilita se estiver editando
+                  disabled={true} 
                 />
-                {isEditing && <p className="text-xs text-gray-500 mt-1">Para alterar a quantidade, realize uma Movimentação (Entrada/Saída).</p>}
+                <p className="text-xs text-gray-500 mt-1">Para alterar a quantidade, realize uma Movimentação (Entrada/Saída).</p>
               </div>
             </div>
             <div className="flex justify-end gap-2 mt-6">
               <button 
-                onClick={() => { setIsEditing(null); setIsAdding(false); }}
+                onClick={() => { setIsEditing(null); }}
                 className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded border transition-colors"
               >
                 Cancelar
