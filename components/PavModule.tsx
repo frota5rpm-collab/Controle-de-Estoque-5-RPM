@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft, LogOut, FileText, Plus, Search, Edit, Trash2, CheckCircle, XCircle, Calendar, AlertCircle } from 'lucide-react';
+import { ArrowLeft, LogOut, FileText, Plus, Search, Edit, Trash2, CheckCircle, XCircle, Calendar, AlertCircle, FileUp, Filter, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { PavProcess } from '../types';
-import { exportToExcel } from '../utils/excel';
+import { exportToExcel, parseExcel } from '../utils/excel';
 
 interface PavModuleProps {
   onBack: () => void;
@@ -10,13 +10,25 @@ interface PavModuleProps {
   onLogout: () => void;
 }
 
+type SortKey = 'vehicle_plate' | 'accident_date' | 'pav_number' | 'inquirer' | 'os_request_date';
+
 export const PavModule: React.FC<PavModuleProps> = ({ onBack, userEmail, onLogout }) => {
   const shieldUrl = "https://yaoebstgiagmrvlbozny.supabase.co/storage/v1/object/sign/Logo%20PMMG/ESCUDO%20PMMG.png?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV9mMjgyNzE5YS0xNjI0LTRiYTUtODk3MC1jNTc3ZDIzMTQ4YjUiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJMb2dvIFBNTUcvRVNDVURPIFBNTUcucG5nIiwiaWF0IjoxNzY1NDAzMzE0LCJleHAiOjIzOTYxMjMzMTR9.1uAuyEEDpwU_vmvKjnSJw0uYbcOIkB-vRpXRDU-Arss";
 
   // Estados
   const [processes, setProcesses] = useState<PavProcess[]>([]);
   const [loading, setLoading] = useState(true);
+  
+  // Filtros
   const [search, setSearch] = useState('');
+  const [filterStatus, setFilterStatus] = useState<'ALL' | 'SENT' | 'PENDING'>('ALL');
+
+  // Ordenação
+  const [sortConfig, setSortConfig] = useState<{ key: SortKey; direction: 'ASC' | 'DESC' }>({ 
+    key: 'accident_date', 
+    direction: 'DESC' 
+  });
+
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isEditing, setIsEditing] = useState<PavProcess | null>(null);
 
@@ -43,8 +55,7 @@ export const PavModule: React.FC<PavModuleProps> = ({ onBack, userEmail, onLogou
     setLoading(true);
     const { data, error } = await supabase
         .from('pav_processes')
-        .select('*')
-        .order('created_at', { ascending: false });
+        .select('*');
     
     if (error) {
         console.error("Erro ao buscar PAVs:", error);
@@ -102,6 +113,70 @@ export const PavModule: React.FC<PavModuleProps> = ({ onBack, userEmail, onLogou
       }
   };
 
+  const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      try {
+        const data = await parseExcel(e.target.files[0]);
+        
+        // Função auxiliar para buscar chave
+        const findValue = (row: any, searchKeys: string[]) => {
+            const objectKeys = Object.keys(row);
+            for (const searchKey of searchKeys) {
+                const foundKey = objectKeys.find(k => k.toLowerCase().includes(searchKey.toLowerCase()));
+                if (foundKey) return row[foundKey];
+            }
+            return undefined;
+        };
+
+        const formattedData = data.map((row: any) => {
+            const sentRaw = findValue(row, ['enviado', 'status']);
+            const isSent = typeof sentRaw === 'string' ? sentRaw.toLowerCase().includes('sim') || sentRaw.toLowerCase().includes('ok') : !!sentRaw;
+
+            return {
+                fraction: findValue(row, ['fracao', 'unidade', 'companhia']) || '',
+                vehicle_prefix: findValue(row, ['prefixo', 'viatura']) || '',
+                vehicle_plate: findValue(row, ['placa']) || '',
+                reds_number: findValue(row, ['reds', 'bo']) || '',
+                accident_date: null, // Datas do Excel requerem tratamento específico, importando null por padrão para evitar erros, ou converter se for string ISO
+                pav_number: findValue(row, ['pav', 'n_pav']) || '',
+                sicor_number: findValue(row, ['sicor']) || '',
+                inquirer: findValue(row, ['encarregado']) || '',
+                sent_to_inquirer: isSent,
+                os_number: findValue(row, ['os', 'ordem']) || '',
+                observations: findValue(row, ['obs', 'observacao']) || ''
+            };
+        }).filter(r => r.vehicle_prefix && r.reds_number); // Filtra linhas inválidas
+
+        if (formattedData.length > 0) {
+          const { error } = await supabase.from('pav_processes').insert(formattedData);
+          if (error) throw error;
+          alert(`${formattedData.length} processos importados com sucesso!`);
+          fetchProcesses();
+        } else {
+          alert("Nenhum processo válido encontrado. Verifique se as colunas 'Prefixo' e 'REDS' existem.");
+        }
+      } catch (err: any) {
+        alert(`Erro ao importar: ${err.message}`);
+        console.error(err);
+      }
+    }
+  };
+
+  const handleSort = (key: SortKey) => {
+    let direction: 'ASC' | 'DESC' = 'ASC';
+    if (sortConfig.key === key && sortConfig.direction === 'ASC') {
+      direction = 'DESC';
+    }
+    setSortConfig({ key, direction });
+  };
+
+  const renderSortIcon = (key: SortKey) => {
+    if (sortConfig.key !== key) return <ArrowUpDown size={14} className="text-gray-400 opacity-50 ml-1 inline-block" />;
+    return sortConfig.direction === 'ASC' 
+      ? <ArrowUp size={14} className="text-[#C5A059] ml-1 inline-block" /> 
+      : <ArrowDown size={14} className="text-[#C5A059] ml-1 inline-block" />;
+  };
+
   const openModal = (process?: PavProcess) => {
       if (process) {
           setIsEditing(process);
@@ -127,13 +202,38 @@ export const PavModule: React.FC<PavModuleProps> = ({ onBack, userEmail, onLogou
       setIsModalOpen(true);
   };
 
-  // Filtragem
-  const filteredProcesses = processes.filter(p => 
-      (p.vehicle_prefix || '').toLowerCase().includes(search.toLowerCase()) ||
-      (p.reds_number || '').toLowerCase().includes(search.toLowerCase()) ||
-      (p.pav_number || '').toLowerCase().includes(search.toLowerCase()) ||
-      (p.inquirer || '').toLowerCase().includes(search.toLowerCase())
-  );
+  // Filtragem e Ordenação
+  const processedProcesses = processes
+    .filter(p => {
+        const matchesSearch = 
+            (p.vehicle_prefix || '').toLowerCase().includes(search.toLowerCase()) ||
+            (p.reds_number || '').toLowerCase().includes(search.toLowerCase()) ||
+            (p.pav_number || '').toLowerCase().includes(search.toLowerCase()) ||
+            (p.inquirer || '').toLowerCase().includes(search.toLowerCase()) ||
+            (p.vehicle_plate || '').toLowerCase().includes(search.toLowerCase());
+        
+        const matchesStatus = 
+            filterStatus === 'ALL' || 
+            (filterStatus === 'SENT' && p.sent_to_inquirer) ||
+            (filterStatus === 'PENDING' && !p.sent_to_inquirer);
+
+        return matchesSearch && matchesStatus;
+    })
+    .sort((a, b) => {
+        let valA: any = a[sortConfig.key];
+        let valB: any = b[sortConfig.key];
+
+        // Tratamento para nulos e strings
+        if (valA === null || valA === undefined) valA = '';
+        if (valB === null || valB === undefined) valB = '';
+
+        if (typeof valA === 'string') valA = valA.toLowerCase();
+        if (typeof valB === 'string') valB = valB.toLowerCase();
+
+        if (valA < valB) return sortConfig.direction === 'ASC' ? -1 : 1;
+        if (valA > valB) return sortConfig.direction === 'ASC' ? 1 : -1;
+        return 0;
+    });
 
   // Formatação de data simples
   const formatDate = (dateString: string | null) => {
@@ -180,29 +280,54 @@ export const PavModule: React.FC<PavModuleProps> = ({ onBack, userEmail, onLogou
         <div className="bg-[#fdfbf7] rounded-xl shadow-2xl border border-[#d4c5a3] p-6 min-h-[600px]">
             
             {/* Barra de Ferramentas */}
-            <div className="flex flex-col md:flex-row justify-between items-center gap-4 mb-6">
-                <div className="relative w-full md:w-96">
-                    <Search className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" />
-                    <input 
-                        type="text"
-                        placeholder="Buscar por Prefixo, REDS, PAV ou Encarregado..."
-                        className="w-full pl-10 pr-4 py-2 border rounded-md focus:ring-2 focus:ring-[#C5A059] outline-none"
-                        value={search}
-                        onChange={(e) => setSearch(e.target.value)}
-                    />
+            <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 mb-6">
+                
+                {/* Filtros e Busca */}
+                <div className="flex flex-col sm:flex-row gap-2 w-full lg:w-auto flex-1">
+                    <div className="relative w-full sm:w-80">
+                        <Search className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" />
+                        <input 
+                            type="text"
+                            placeholder="Buscar (Prefixo, REDS, PAV, Encarregado)..."
+                            className="w-full pl-10 pr-4 py-2 border rounded-md focus:ring-2 focus:ring-[#C5A059] outline-none"
+                            value={search}
+                            onChange={(e) => setSearch(e.target.value)}
+                        />
+                    </div>
+                    
+                    <div className="relative w-full sm:w-48">
+                        <div className="absolute left-3 top-2.5 pointer-events-none">
+                            <Filter size={18} className="text-gray-400" />
+                        </div>
+                        <select 
+                            className="w-full pl-10 pr-4 py-2 border rounded-md focus:ring-2 focus:ring-[#C5A059] outline-none appearance-none bg-white"
+                            value={filterStatus}
+                            onChange={(e) => setFilterStatus(e.target.value as any)}
+                        >
+                            <option value="ALL">Todos os Status</option>
+                            <option value="SENT">Enviado ao Encarregado</option>
+                            <option value="PENDING">Pendente Envio</option>
+                        </select>
+                    </div>
                 </div>
-                <div className="flex gap-2">
+
+                {/* Botões de Ação */}
+                <div className="flex gap-2 w-full lg:w-auto justify-end flex-wrap">
+                     <label className="flex items-center gap-2 px-4 py-2 bg-[#556B2F] text-white rounded cursor-pointer hover:bg-[#435525] transition-colors shadow-sm whitespace-nowrap">
+                        <FileUp size={18} /> Importar Excel
+                        <input type="file" accept=".xlsx, .xls, .csv" className="hidden" onChange={handleImport} />
+                     </label>
                      <button 
                         onClick={() => exportToExcel(processes, 'Controle_PAV_5RPM')}
-                        className="flex items-center gap-2 px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700 transition-colors"
+                        className="flex items-center gap-2 px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700 transition-colors whitespace-nowrap"
                      >
-                        <FileText size={18} /> Exportar Excel
+                        <FileText size={18} /> Exportar
                      </button>
                      <button 
                         onClick={() => openModal()}
-                        className="flex items-center gap-2 px-4 py-2 bg-[#C5A059] text-[#3E3223] font-bold rounded hover:bg-[#b08d4a] transition-colors shadow-sm"
+                        className="flex items-center gap-2 px-4 py-2 bg-[#C5A059] text-[#3E3223] font-bold rounded hover:bg-[#b08d4a] transition-colors shadow-sm whitespace-nowrap"
                      >
-                        <Plus size={20} /> Novo Processo
+                        <Plus size={20} /> Novo
                      </button>
                 </div>
             </div>
@@ -210,26 +335,51 @@ export const PavModule: React.FC<PavModuleProps> = ({ onBack, userEmail, onLogou
             {/* Tabela */}
             <div className="overflow-x-auto rounded-lg border border-gray-200 shadow-sm">
                 <table className="w-full text-left border-collapse text-sm">
-                    <thead className="bg-[#3E3223] text-white">
+                    <thead className="bg-[#3E3223] text-white select-none">
                         <tr>
-                            <th className="p-3 border-r border-[#4A3B2A]">Prefixo/Placa</th>
-                            <th className="p-3 border-r border-[#4A3B2A]">Ocorrência</th>
-                            <th className="p-3 border-r border-[#4A3B2A]">Controle Adm.</th>
-                            <th className="p-3 border-r border-[#4A3B2A]">Encarregado</th>
-                            <th className="p-3 border-r border-[#4A3B2A]">Portal de Serviços</th>
-                            <th className="p-3 text-right">Ações</th>
+                            <th 
+                                className="p-3 border-r border-[#4A3B2A] cursor-pointer hover:bg-[#4A3B2A] transition-colors"
+                                onClick={() => handleSort('vehicle_plate')}
+                            >
+                                Prefixo/Placa {renderSortIcon('vehicle_plate')}
+                            </th>
+                            <th 
+                                className="p-3 border-r border-[#4A3B2A] cursor-pointer hover:bg-[#4A3B2A] transition-colors"
+                                onClick={() => handleSort('accident_date')}
+                            >
+                                Ocorrência {renderSortIcon('accident_date')}
+                            </th>
+                            <th 
+                                className="p-3 border-r border-[#4A3B2A] cursor-pointer hover:bg-[#4A3B2A] transition-colors"
+                                onClick={() => handleSort('pav_number')}
+                            >
+                                Controle Adm. {renderSortIcon('pav_number')}
+                            </th>
+                            <th 
+                                className="p-3 border-r border-[#4A3B2A] cursor-pointer hover:bg-[#4A3B2A] transition-colors"
+                                onClick={() => handleSort('inquirer')}
+                            >
+                                Encarregado {renderSortIcon('inquirer')}
+                            </th>
+                            <th 
+                                className="p-3 border-r border-[#4A3B2A] cursor-pointer hover:bg-[#4A3B2A] transition-colors"
+                                onClick={() => handleSort('os_request_date')}
+                            >
+                                Portal de Serviços {renderSortIcon('os_request_date')}
+                            </th>
+                            <th className="p-3 text-right w-24">Ações</th>
                         </tr>
                     </thead>
                     <tbody className="bg-white">
                         {loading ? (
                              <tr><td colSpan={6} className="p-8 text-center">Carregando dados...</td></tr>
-                        ) : filteredProcesses.length === 0 ? (
+                        ) : processedProcesses.length === 0 ? (
                             <tr><td colSpan={6} className="p-8 text-center text-gray-500">Nenhum processo encontrado.</td></tr>
-                        ) : filteredProcesses.map((p) => (
+                        ) : processedProcesses.map((p) => (
                             <tr key={p.id} className="border-b hover:bg-amber-50">
                                 <td className="p-3 border-r">
                                     <div className="font-bold text-[#3E3223]">{p.vehicle_prefix}</div>
-                                    <div className="text-xs text-gray-500">{p.vehicle_plate}</div>
+                                    <div className="text-xs text-gray-500 uppercase">{p.vehicle_plate}</div>
                                     <div className="text-xs bg-gray-100 rounded px-1 mt-1 w-fit">{p.fraction}</div>
                                 </td>
                                 <td className="p-3 border-r">
@@ -244,7 +394,7 @@ export const PavModule: React.FC<PavModuleProps> = ({ onBack, userEmail, onLogou
                                     {!p.pav_number && !p.sicor_number && <span className="text-gray-400 italic">Pendente</span>}
                                 </td>
                                 <td className="p-3 border-r">
-                                    <div>{p.inquirer || '-'}</div>
+                                    <div className="font-medium">{p.inquirer || '-'}</div>
                                     <div className="mt-1">
                                         {p.sent_to_inquirer ? (
                                             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-green-100 text-green-700 border border-green-200">
