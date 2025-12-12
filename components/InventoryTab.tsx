@@ -190,14 +190,14 @@ export const InventoryTab: React.FC = () => {
         
         <div className="flex gap-2 w-full xl:w-auto justify-end">
           <label className="flex items-center gap-2 px-3 py-2 bg-pmmg-success text-white rounded-md cursor-pointer hover:bg-green-800 transition-colors shadow-sm">
-            <FileUp size={16} /> <span className="hidden sm:inline">Importar</span>
+            <FileUp size={16} /> <span className="hidden sm:inline">Importar Excel</span>
             <input type="file" accept=".xlsx, .xls, .csv" className="hidden" onChange={handleImport} />
           </label>
           <button 
             onClick={() => exportToExcel(materials, 'Estoque_Frota_5RPM')}
             className="flex items-center gap-2 px-3 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors shadow-sm"
           >
-            <FileDown size={16} /> <span className="hidden sm:inline">Exportar</span>
+            <FileDown size={16} /> <span className="hidden sm:inline">Exportar Excel</span>
           </button>
           {/* Botão Novo Material removido conforme solicitação */}
         </div>

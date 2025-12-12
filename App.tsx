@@ -138,9 +138,12 @@ function App() {
 
           {/* Lado Direito: Título */}
           <div className="text-right">
-            <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight text-[#C5A059] drop-shadow-md shadow-black/50 font-serif">
-              Controles Frota 5ª RPM
+            <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight text-[#C5A059] drop-shadow-md shadow-black/50 font-serif uppercase">
+              CONTROLE DE ESTOQUE
             </h1>
+            <p className="text-lg font-bold text-[#C5A059] opacity-90 tracking-widest font-serif">
+              FROTA 5ª RPM
+            </p>
             <p className="text-xs text-gray-300 mt-1 opacity-70">Logado como: {userEmail}</p>
           </div>
         </div>

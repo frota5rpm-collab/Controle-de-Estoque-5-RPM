@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft, LogOut, FileText, Plus, Search, Edit, Trash2, CheckCircle, XCircle, Calendar, AlertCircle, FileUp, Filter, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react';
+import { Home, LogOut, FileText, Plus, Search, Edit, Trash2, CheckCircle, XCircle, Calendar, AlertCircle, FileUp, Filter, ArrowUp, ArrowDown, ArrowUpDown, MessageSquare, MapPin } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { PavProcess } from '../types';
 import { exportToExcel, parseExcel } from '../utils/excel';
@@ -22,6 +22,7 @@ export const PavModule: React.FC<PavModuleProps> = ({ onBack, userEmail, onLogou
   // Filtros
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState<'ALL' | 'SENT' | 'PENDING'>('ALL');
+  const [filterFraction, setFilterFraction] = useState<string>('ALL');
 
   // Ordenação
   const [sortConfig, setSortConfig] = useState<{ key: SortKey; direction: 'ASC' | 'DESC' }>({ 
@@ -111,6 +112,7 @@ export const PavModule: React.FC<PavModuleProps> = ({ onBack, userEmail, onLogou
     try {
         const payload = {
             ...formData,
+            inquirer: formData.inquirer.toUpperCase(), // Garante maiúsculo ao salvar
             accident_date: formData.accident_date || null,
             os_request_date: formData.os_request_date || null,
             os_followup_date: formData.os_followup_date || null,
@@ -170,6 +172,7 @@ export const PavModule: React.FC<PavModuleProps> = ({ onBack, userEmail, onLogou
         const formattedData = data.map((row: any) => {
             const sentRaw = findValue(row, ['enviado', 'status']);
             const isSent = typeof sentRaw === 'string' ? sentRaw.toLowerCase().includes('sim') || sentRaw.toLowerCase().includes('ok') : !!sentRaw;
+            const inquirerName = findValue(row, ['encarregado']) || '';
 
             return {
                 fraction: findValue(row, ['fracao', 'unidade', 'companhia']) || '',
@@ -178,7 +181,7 @@ export const PavModule: React.FC<PavModuleProps> = ({ onBack, userEmail, onLogou
                 reds_number: findValue(row, ['reds', 'bo']) || '',
                 accident_date: null, // Datas do Excel requerem tratamento específico, importando null por padrão para evitar erros, ou converter se for string ISO
                 pav_number: findValue(row, ['pav', 'n_pav']) || '',
-                inquirer: findValue(row, ['encarregado']) || '',
+                inquirer: String(inquirerName).toUpperCase(),
                 sent_to_inquirer: isSent,
                 os_number: findValue(row, ['os', 'ordem']) || '',
                 observations: findValue(row, ['obs', 'observacao']) || ''
@@ -226,7 +229,7 @@ export const PavModule: React.FC<PavModuleProps> = ({ onBack, userEmail, onLogou
               accident_date: process.accident_date || '',
               reds_number: process.reds_number || '',
               pav_number: process.pav_number || '',
-              inquirer: process.inquirer || '',
+              inquirer: (process.inquirer || '').toUpperCase(),
               sent_to_inquirer: process.sent_to_inquirer || false,
               os_request_date: process.os_request_date || '',
               os_number: process.os_number || '',
@@ -264,7 +267,11 @@ export const PavModule: React.FC<PavModuleProps> = ({ onBack, userEmail, onLogou
             (filterStatus === 'SENT' && p.sent_to_inquirer) ||
             (filterStatus === 'PENDING' && !p.sent_to_inquirer);
 
-        return matchesSearch && matchesStatus;
+        const matchesFraction = 
+            filterFraction === 'ALL' ||
+            p.fraction === filterFraction;
+
+        return matchesSearch && matchesStatus && matchesFraction;
     })
     .sort((a, b) => {
         let valA: any = a[sortConfig.key];
@@ -290,35 +297,46 @@ export const PavModule: React.FC<PavModuleProps> = ({ onBack, userEmail, onLogou
 
   return (
     <div className="min-h-screen bg-[#958458] font-sans flex flex-col">
-      {/* Header Específico do PAV */}
+      {/* Header Específico do PAV - Padronizado com App.tsx */}
       <header className="bg-[#3E3223] shadow-lg sticky top-0 z-40 border-b-4 border-[#C5A059]">
-        <div className="container mx-auto px-4 h-24 flex items-center justify-between">
-          <div className="flex items-center gap-4">
+        <div className="container mx-auto px-4 h-32 flex items-center justify-between">
+          
+          {/* Lado Esquerdo: Escudo e Botão Voltar */}
+          <div className="flex items-center gap-4 py-2">
              <button 
                 onClick={onBack}
-                className="p-2 text-white/80 hover:text-white hover:bg-white/10 rounded-full transition-colors"
-                title="Voltar ao Menu"
+                className="flex flex-col items-center justify-center text-[#C5A059] hover:text-white transition-colors bg-white/5 hover:bg-white/10 p-2 rounded-lg"
+                title="Voltar ao Menu Principal"
              >
-                <ArrowLeft size={24} />
+                <Home size={20} />
+                <span className="text-[10px] uppercase font-bold mt-1">Menu</span>
              </button>
-             <div className="flex items-center gap-3">
-                <img src={shieldUrl} alt="Escudo" className="h-12" />
-                <div>
-                    <h1 className="text-2xl font-bold text-[#C5A059]">Controle de PAV</h1>
-                    <p className="text-xs text-gray-400">Frota 5ª RPM</p>
-                </div>
-             </div>
+             <img 
+               src={shieldUrl} 
+               alt="Escudo" 
+               className="h-28 drop-shadow-xl filter brightness-110"
+               style={{ height: '7rem' }}
+             />
           </div>
           
-          <div className="flex items-center gap-4">
-            <span className="text-sm text-gray-300 hidden md:block">{userEmail}</span>
-            <button 
-                onClick={onLogout}
-                className="text-red-300 hover:text-red-100"
-                title="Sair"
-            >
-                <LogOut size={20} />
-            </button>
+          {/* Lado Direito: Título */}
+          <div className="text-right">
+             <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight text-[#C5A059] drop-shadow-md shadow-black/50 font-serif uppercase">
+               CONTROLE DE PAV
+             </h1>
+             <p className="text-lg font-bold text-[#C5A059] opacity-90 tracking-widest font-serif">
+                FROTA 5ª RPM
+             </p>
+             <div className="flex items-center justify-end gap-3 mt-1">
+                 <span className="text-xs text-gray-300 opacity-70 hidden md:inline">{userEmail}</span>
+                 <button 
+                    onClick={onLogout}
+                    className="text-red-300 hover:text-red-100 flex items-center gap-1 text-xs font-bold uppercase tracking-wider"
+                    title="Sair"
+                >
+                    <LogOut size={14} /> Sair
+                </button>
+             </div>
           </div>
         </div>
       </header>
@@ -351,9 +369,27 @@ export const PavModule: React.FC<PavModuleProps> = ({ onBack, userEmail, onLogou
                             value={filterStatus}
                             onChange={(e) => setFilterStatus(e.target.value as any)}
                         >
-                            <option value="ALL">Todos os Status</option>
-                            <option value="SENT">Enviado ao Encarregado</option>
-                            <option value="PENDING">Pendente Envio</option>
+                            <option value="ALL">Status: TODOS</option>
+                            <option value="SENT">Enviado</option>
+                            <option value="PENDING">Pendente</option>
+                        </select>
+                    </div>
+
+                    <div className="relative w-full sm:w-48">
+                        <div className="absolute left-3 top-2.5 pointer-events-none">
+                            <MapPin size={18} className="text-gray-400" />
+                        </div>
+                        <select 
+                            className="w-full pl-10 pr-4 py-2 border rounded-md focus:ring-2 focus:ring-[#C5A059] outline-none appearance-none bg-white"
+                            value={filterFraction}
+                            onChange={(e) => setFilterFraction(e.target.value)}
+                        >
+                            <option value="ALL">Unidade: TODAS</option>
+                            <option value="4° BPM">4° BPM</option>
+                            <option value="67° BPM">67° BPM</option>
+                            <option value="37° BPM">37° BPM</option>
+                            <option value="69° BPM">69° BPM</option>
+                            <option value="3ª CIA PM IND">3ª CIA PM IND</option>
                         </select>
                     </div>
                 </div>
@@ -368,7 +404,7 @@ export const PavModule: React.FC<PavModuleProps> = ({ onBack, userEmail, onLogou
                         onClick={() => exportToExcel(processes, 'Controle_PAV_5RPM')}
                         className="flex items-center gap-2 px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700 transition-colors whitespace-nowrap"
                      >
-                        <FileText size={18} /> Exportar
+                        <FileText size={18} /> Exportar Excel
                      </button>
                      <button 
                         onClick={() => openModal()}
@@ -388,76 +424,66 @@ export const PavModule: React.FC<PavModuleProps> = ({ onBack, userEmail, onLogou
                                 className="p-3 border-r border-[#4A3B2A] cursor-pointer hover:bg-[#4A3B2A] transition-colors"
                                 onClick={() => handleSort('vehicle_plate')}
                             >
-                                Prefixo/Placa {renderSortIcon('vehicle_plate')}
+                                VIATURA {renderSortIcon('vehicle_plate')}
                             </th>
                             <th 
                                 className="p-3 border-r border-[#4A3B2A] cursor-pointer hover:bg-[#4A3B2A] transition-colors"
                                 onClick={() => handleSort('accident_date')}
                             >
-                                Ocorrência {renderSortIcon('accident_date')}
+                                REDS/BOS {renderSortIcon('accident_date')}
                             </th>
                             <th 
                                 className="p-3 border-r border-[#4A3B2A] cursor-pointer hover:bg-[#4A3B2A] transition-colors"
                                 onClick={() => handleSort('pav_number')}
                             >
-                                Controle Adm. {renderSortIcon('pav_number')}
-                            </th>
-                            <th 
-                                className="p-3 border-r border-[#4A3B2A] cursor-pointer hover:bg-[#4A3B2A] transition-colors"
-                                onClick={() => handleSort('inquirer')}
-                            >
-                                Encarregado {renderSortIcon('inquirer')}
+                                ENCARREGADO/N° PAV {renderSortIcon('pav_number')}
                             </th>
                             <th 
                                 className="p-3 border-r border-[#4A3B2A] cursor-pointer hover:bg-[#4A3B2A] transition-colors"
                                 onClick={() => handleSort('os_request_date')}
                             >
-                                Portal de Serviços {renderSortIcon('os_request_date')}
+                                PORTAL DE SERVIÇOS {renderSortIcon('os_request_date')}
                             </th>
-                            <th className="p-3 text-right w-24">Ações</th>
+                             <th 
+                                className="p-3 border-r border-[#4A3B2A] cursor-pointer hover:bg-[#4A3B2A] transition-colors text-center"
+                            >
+                                STATUS
+                            </th>
+                            <th className="p-3 border-r border-[#4A3B2A] text-center w-12">OBS</th>
+                            <th className="p-3 text-right w-24">AÇÕES</th>
                         </tr>
                     </thead>
                     <tbody className="bg-white">
                         {loading ? (
-                             <tr><td colSpan={6} className="p-8 text-center">Carregando dados...</td></tr>
+                             <tr><td colSpan={7} className="p-8 text-center">Carregando dados...</td></tr>
                         ) : processedProcesses.length === 0 ? (
-                            <tr><td colSpan={6} className="p-8 text-center text-gray-500">Nenhum processo encontrado.</td></tr>
+                            <tr><td colSpan={7} className="p-8 text-center text-gray-500">Nenhum processo encontrado.</td></tr>
                         ) : processedProcesses.map((p) => (
                             <tr key={p.id} className="border-b hover:bg-amber-50">
                                 <td className="p-3 border-r">
-                                    <div className="font-bold text-[#3E3223]">{p.vehicle_prefix}</div>
+                                    <div className="text-lg font-bold text-[#3E3223]">{p.vehicle_prefix}</div>
                                     <div className="text-xs text-gray-500 uppercase">{p.vehicle_plate}</div>
                                     <div className="text-xs bg-gray-100 rounded px-1 mt-1 w-fit">{p.fraction}</div>
                                 </td>
                                 <td className="p-3 border-r">
-                                    <div className="font-semibold">REDS: {p.reds_number}</div>
+                                    <div className="font-bold text-lg text-gray-800">{p.reds_number}</div>
                                     <div className="text-xs text-gray-500 flex items-center gap-1">
                                         <Calendar size={10} /> {formatDate(p.accident_date)}
                                     </div>
                                 </td>
                                 <td className="p-3 border-r">
-                                    {p.pav_number && <div className="text-xs font-mono">PAV: {p.pav_number}</div>}
-                                    {!p.pav_number && <span className="text-gray-400 italic">Pendente</span>}
-                                </td>
-                                <td className="p-3 border-r">
-                                    <div className="font-medium">{p.inquirer || '-'}</div>
-                                    <div className="mt-1">
-                                        {p.sent_to_inquirer ? (
-                                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-green-100 text-green-700 border border-green-200">
-                                                <CheckCircle size={10} /> ENVIADO
-                                            </span>
-                                        ) : (
-                                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-50 text-red-600 border border-red-200">
-                                                <XCircle size={10} /> PENDENTE
-                                            </span>
-                                        )}
-                                    </div>
+                                    <div className="font-medium text-gray-900 mb-1">{(p.inquirer || '-').toUpperCase()}</div>
+                                    {p.pav_number ? (
+                                        <div className="text-lg font-bold font-mono text-[#3E3223]">{p.pav_number}</div>
+                                    ) : (
+                                        <span className="text-gray-400 italic text-xs">Pendente</span>
+                                    )}
                                 </td>
                                 <td className="p-3 border-r">
                                     {p.os_number ? (
                                         <>
-                                            <div className="font-semibold text-blue-800">OS: {p.os_number}</div>
-                                            <div className="text-xs text-gray-500">Solic: {formatDate(p.os_request_date)}</div>
+                                            <div className="font-bold text-lg text-blue-800">{p.os_number}</div>
+                                            <div className="text-xs text-gray-600 font-medium">1ª Solic: {formatDate(p.os_request_date)}</div>
                                             {p.os_followup_date && (
                                                 <div className="text-xs text-orange-600 font-bold mt-1">
                                                     Cobrança: {formatDate(p.os_followup_date)}
@@ -465,6 +491,27 @@ export const PavModule: React.FC<PavModuleProps> = ({ onBack, userEmail, onLogou
                                             )}
                                         </>
                                     ) : <span className="text-gray-400 italic">-</span>}
+                                </td>
+                                <td className="p-3 border-r text-center">
+                                    {p.sent_to_inquirer ? (
+                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-green-100 text-green-700 border border-green-200">
+                                            <CheckCircle size={10} /> ENVIADO
+                                        </span>
+                                    ) : (
+                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-50 text-red-600 border border-red-200">
+                                            <XCircle size={10} /> PENDENTE
+                                        </span>
+                                    )}
+                                </td>
+                                <td className="p-3 border-r text-center">
+                                    {p.observations && (
+                                        <div className="group relative inline-block">
+                                            <MessageSquare size={20} className="text-blue-500 cursor-help" />
+                                            <div className="absolute bottom-full right-0 mb-2 w-56 p-2 bg-gray-800 text-white text-xs rounded hidden group-hover:block z-50 shadow-lg text-left">
+                                                {p.observations}
+                                            </div>
+                                        </div>
+                                    )}
                                 </td>
                                 <td className="p-3 text-right">
                                     <div className="flex justify-end gap-2">
@@ -625,7 +672,7 @@ export const PavModule: React.FC<PavModuleProps> = ({ onBack, userEmail, onLogou
                                     <input 
                                         className={getInputClass('inquirer')}
                                         value={formData.inquirer}
-                                        onChange={e => setFormData({...formData, inquirer: e.target.value})}
+                                        onChange={e => setFormData({...formData, inquirer: e.target.value.toUpperCase()})}
                                         placeholder="Posto/Grad e Nome"
                                     />
                                 </div>

@@ -248,7 +248,7 @@ export const MovementsTab: React.FC = () => {
                 onClick={() => exportToExcel(movements, 'Movimentacoes_Frota_5RPM')}
                 className="flex items-center gap-2 px-3 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors shadow-sm"
               >
-                <FileDown size={16} /> Exportar
+                <FileDown size={16} /> Exportar Excel
               </button>
               <button 
                 onClick={() => { setIsAdding(true); setFormData(initialForm); }}

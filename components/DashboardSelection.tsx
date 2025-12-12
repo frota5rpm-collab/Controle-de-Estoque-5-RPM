@@ -22,7 +22,7 @@ export const DashboardSelection: React.FC<DashboardSelectionProps> = ({ onSelect
             className="h-28 mx-auto mb-4 drop-shadow-xl filter brightness-110"
           />
           <h1 className="text-3xl md:text-4xl font-extrabold text-white drop-shadow-md font-serif mb-2">
-            Sistema Integrado 5ª RPM
+            Sistema de Gestão Frota 5ª RPM
           </h1>
           <p className="text-white/80">Bem-vindo, {userEmail}</p>
         </div>
@@ -41,9 +41,6 @@ export const DashboardSelection: React.FC<DashboardSelectionProps> = ({ onSelect
             <h2 className="text-2xl font-bold text-[#3E3223] mb-3 group-hover:text-[#C5A059] transition-colors">
               Controle de Estoque
             </h2>
-            <p className="text-gray-600">
-              Gerenciamento de materiais, movimentações (entrada/saída) e mapa carga da frota.
-            </p>
           </button>
 
           {/* Cartão 2: PAV */}
@@ -57,9 +54,6 @@ export const DashboardSelection: React.FC<DashboardSelectionProps> = ({ onSelect
             <h2 className="text-2xl font-bold text-[#3E3223] mb-3 group-hover:text-[#C5A059] transition-colors">
               Controle de PAV
             </h2>
-            <p className="text-gray-600">
-              Gestão administrativa, controle de processos e novos registros do PAV.
-            </p>
           </button>
 
         </div>
