@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { Material, Movement, MovementType } from '../types';
-import { Plus, ArrowDownCircle, ArrowUpCircle, FileDown, Search, Edit, XCircle, ArrowUpDown, ArrowUp, ArrowDown, PackagePlus, MessageSquare } from 'lucide-react';
+import { Plus, ArrowDownCircle, ArrowUpCircle, FileDown, Search, Edit, XCircle, ArrowUpDown, ArrowUp, ArrowDown, PackagePlus, MessageSquare, Trash2, AlertTriangle } from 'lucide-react';
 import { exportToExcel } from '../utils/excel';
 
 type SortKey = 'created_at' | 'type' | 'material_name' | 'quantity' | 'requester' | 'vehicle_prefix' | 'guide_number';
@@ -14,6 +14,9 @@ export const MovementsTab: React.FC = () => {
   const [isAdding, setIsAdding] = useState(false);
   const [isEditing, setIsEditing] = useState<Movement | null>(null);
   const [search, setSearch] = useState('');
+
+  // Estado para exclusão
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   // Estado para cadastro rápido de novo material
   const [isAddingMaterial, setIsAddingMaterial] = useState(false);
@@ -60,7 +63,6 @@ export const MovementsTab: React.FC = () => {
       if (movError) throw movError;
 
       // 3. Join in Javascript
-      // Explicitly cast to prevent type errors
       const matList = (matData || []) as Material[];
       const matMap = new Map<string, Material>(matList.map(m => [m.id, m]));
       
@@ -127,7 +129,6 @@ export const MovementsTab: React.FC = () => {
     }
 
     try {
-      // Format payload (Convert empty strings to null for optional fields)
       const payload = {
           material_id: formData.material_id,
           type: formData.type,
@@ -164,6 +165,27 @@ export const MovementsTab: React.FC = () => {
     } catch (err: any) {
       console.error(err);
       alert(`Erro ao salvar: ${err.message || JSON.stringify(err)}`);
+    }
+  };
+
+  const confirmDelete = async () => {
+    if (!deletingId) return;
+
+    try {
+      const { error } = await supabase
+        .from('movements')
+        .delete()
+        .eq('id', deletingId);
+
+      if (error) throw error;
+
+      // Sucesso
+      setDeletingId(null);
+      fetchData();
+    } catch (err: any) {
+      console.error('Erro ao excluir:', err);
+      alert(`Erro ao excluir: ${err.message || JSON.stringify(err)}`);
+      setDeletingId(null);
     }
   };
 
@@ -220,7 +242,6 @@ export const MovementsTab: React.FC = () => {
             />
         </div>
         
-        {/* Agrupamento de Botões e Mensagem de Aviso */}
         <div className="flex flex-col items-end gap-2 w-full xl:w-auto">
             <div className="flex gap-2">
                <button 
@@ -236,10 +257,6 @@ export const MovementsTab: React.FC = () => {
                 <Plus size={16} /> Nova Movimentação
               </button>
             </div>
-            {/* MENSAGEM DE AVISO SOLICITADA */}
-            <p className="text-xs text-red-600 font-bold italic text-right max-w-md">
-                "Em caso de lançamento errado, deverá ser feito um novo lançamento e inserir o motivo nas observações"
-            </p>
         </div>
       </div>
 
@@ -250,7 +267,42 @@ export const MovementsTab: React.FC = () => {
         </div>
       )}
 
-      {/* MODAL DE NOVO MATERIAL (DENTRO DA MOVIMENTAÇÃO) */}
+      {/* MODAL DE CONFIRMAÇÃO DE EXCLUSÃO */}
+      {deletingId && (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[70]">
+              <div className="bg-white p-6 rounded-lg shadow-2xl w-full max-w-md border-t-4 border-red-600">
+                  <div className="flex items-center gap-3 mb-4 text-red-700">
+                      <AlertTriangle size={32} />
+                      <h3 className="text-xl font-bold">Confirmar Exclusão</h3>
+                  </div>
+                  
+                  <p className="text-gray-700 mb-6">
+                      Tem certeza que deseja excluir esta movimentação? <br/>
+                      <span className="text-sm font-bold text-gray-500 mt-2 block">
+                          Isso irá corrigir automaticamente o saldo no estoque.
+                      </span>
+                  </p>
+                  
+                  <div className="flex justify-end gap-3">
+                      <button 
+                          onClick={() => setDeletingId(null)}
+                          className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded border font-medium"
+                      >
+                          Cancelar
+                      </button>
+                      <button 
+                          onClick={confirmDelete}
+                          className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 shadow-md font-bold flex items-center gap-2"
+                      >
+                          <Trash2 size={18} />
+                          Sim, Excluir
+                      </button>
+                  </div>
+              </div>
+          </div>
+      )}
+
+      {/* MODAL DE NOVO MATERIAL */}
       {isAddingMaterial && (
           <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-[60]">
               <div className="bg-white p-5 rounded-lg shadow-2xl w-96 border-l-4 border-pmmg-accent">
@@ -518,6 +570,13 @@ export const MovementsTab: React.FC = () => {
                         title="Editar"
                       >
                         <Edit size={16} />
+                      </button>
+                      <button 
+                        onClick={() => setDeletingId(m.id)}
+                        className="p-2 text-red-600 hover:bg-red-50 rounded-full transition-colors"
+                        title="Excluir"
+                      >
+                        <Trash2 size={16} />
                       </button>
                     </div>
                   </td>
