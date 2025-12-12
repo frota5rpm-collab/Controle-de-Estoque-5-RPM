@@ -1,3 +1,4 @@
+
 export interface Material {
   id: string;
   name: string;
@@ -31,6 +32,24 @@ export interface Vehicle {
   plate: string;
   model: string;
   fraction: string;
+}
+
+export interface PavProcess {
+  id: string;
+  fraction: string;
+  vehicle_prefix: string;
+  vehicle_plate: string;
+  accident_date: string | null;
+  reds_number: string;
+  sicor_number: string;
+  pav_number: string;
+  inquirer: string;
+  sent_to_inquirer: boolean;
+  os_request_date: string | null;
+  os_number: string;
+  os_followup_date: string | null;
+  observations: string;
+  created_at: string;
 }
 
 export type Tab = 'inventory' | 'movements' | 'fleet' | 'setup';

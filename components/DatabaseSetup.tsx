@@ -4,7 +4,32 @@ export const DatabaseSetup: React.FC = () => {
   const sql = `
 -- Execute este SQL no Editor SQL do seu projeto Supabase para configurar o banco corretamente
 
--- 1. ALTERAÇÕES PARA PERMITIR ENTRADA SIMPLIFICADA E OBSERVAÇÕES
+-- 1. TABELA DE CONTROLE DE PAV (NOVO MÓDULO)
+CREATE TABLE IF NOT EXISTS public.pav_processes (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    fraction TEXT,              -- Unidade / Fração
+    vehicle_prefix TEXT,        -- Prefixo
+    vehicle_plate TEXT,         -- Placa
+    accident_date DATE,         -- Data do Acidente
+    reds_number TEXT,           -- Nº REDS
+    sicor_number TEXT,          -- Nº SICOR
+    pav_number TEXT,            -- Nº PAV
+    inquirer TEXT,              -- Encarregado
+    sent_to_inquirer BOOLEAN DEFAULT FALSE, -- Enviado ao encarregado?
+    os_request_date DATE,       -- Data Solicitação OS
+    os_number TEXT,             -- Nº OS Portal
+    os_followup_date DATE,      -- Data Reforço Cobrança
+    observations TEXT,          -- Observações
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+-- Políticas de segurança para PAV
+ALTER TABLE public.pav_processes ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Public Access PAV" ON public.pav_processes;
+CREATE POLICY "Public Access PAV" ON public.pav_processes FOR ALL USING (true) WITH CHECK (true);
+
+
+-- 2. ALTERAÇÕES ANTIGAS (ESTOQUE)
 -- Remove a obrigatoriedade de Responsável e Prefixo
 ALTER TABLE public.movements ALTER COLUMN requester DROP NOT NULL;
 ALTER TABLE public.movements ALTER COLUMN vehicle_prefix DROP NOT NULL;
@@ -17,7 +42,7 @@ BEGIN
     END IF;
 END $$;
 
--- Garante coluna de observação na tabela de movimentações (NOVO)
+-- Garante coluna de observação na tabela de movimentações
 DO $$
 BEGIN
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='movements' AND column_name='observation') THEN
@@ -25,7 +50,7 @@ BEGIN
     END IF;
 END $$;
 
--- 2. TABELAS (Estrutura Básica - Caso ainda não tenha criado)
+-- 3. TABELAS BÁSICAS (Caso não existam)
 CREATE TABLE IF NOT EXISTS public.materials (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     name TEXT NOT NULL,
@@ -46,25 +71,22 @@ CREATE TABLE IF NOT EXISTS public.vehicles (
 CREATE TABLE IF NOT EXISTS public.movements (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     material_id UUID REFERENCES public.materials(id) ON DELETE CASCADE,
-    type TEXT NOT NULL, -- 'ENTRADA' ou 'SAIDA'
+    type TEXT NOT NULL, 
     quantity INTEGER NOT NULL,
-    requester TEXT, -- Pode ser nulo na ENTRADA
-    vehicle_prefix TEXT, -- Pode ser nulo na ENTRADA
+    requester TEXT,
+    vehicle_prefix TEXT,
     guide_number TEXT,
     observation TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
--- 3. SEGURANÇA (Liberar acesso)
+-- 4. SEGURANÇA GERAL
 ALTER TABLE public.materials ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.vehicles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.movements ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "Allow public access materials" ON public.materials;
 DROP POLICY IF EXISTS "Allow public access vehicles" ON public.vehicles;
-
--- Políticas detalhadas para Movimentações
-DROP POLICY IF EXISTS "Allow public access movements" ON public.movements;
 DROP POLICY IF EXISTS "Public Select Movements" ON public.movements;
 DROP POLICY IF EXISTS "Public Insert Movements" ON public.movements;
 DROP POLICY IF EXISTS "Public Update Movements" ON public.movements;
@@ -77,10 +99,9 @@ CREATE POLICY "Public Delete Movements" ON public.movements FOR DELETE USING (tr
 CREATE POLICY "Allow public access materials" ON public.materials FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Allow public access vehicles" ON public.vehicles FOR ALL USING (true) WITH CHECK (true);
 
--- 4. AUTOMAÇÃO DE ESTOQUE (IMPORTANTE!)
+-- 5. TRIGGER DE ESTOQUE
 CREATE OR REPLACE FUNCTION handle_inventory_update() RETURNS TRIGGER AS $$
 BEGIN
-    -- CENÁRIO 1: DELETANDO ou EDITANDO
     IF (TG_OP = 'DELETE' OR TG_OP = 'UPDATE') THEN
         IF OLD.type = 'ENTRADA' THEN
             UPDATE materials SET quantity = quantity - OLD.quantity WHERE id = OLD.material_id;
@@ -89,7 +110,6 @@ BEGIN
         END IF;
     END IF;
 
-    -- CENÁRIO 2: INSERINDO ou EDITANDO
     IF (TG_OP = 'INSERT' OR TG_OP = 'UPDATE') THEN
         IF NEW.type = 'ENTRADA' THEN
             UPDATE materials SET quantity = quantity + NEW.quantity WHERE id = NEW.material_id;
@@ -102,7 +122,6 @@ END;
 $$ LANGUAGE plpgsql;
 
 DROP TRIGGER IF EXISTS trigger_inventory_update ON public.movements;
-
 CREATE TRIGGER trigger_inventory_update
 AFTER INSERT OR UPDATE OR DELETE ON public.movements
 FOR EACH ROW EXECUTE FUNCTION handle_inventory_update();
@@ -113,8 +132,7 @@ FOR EACH ROW EXECUTE FUNCTION handle_inventory_update();
       <div className="bg-gray-800 p-8 rounded-lg max-w-3xl w-full shadow-2xl my-8">
         <h2 className="text-2xl font-bold mb-4 text-red-400">Atualização do Banco de Dados</h2>
         <p className="mb-4 text-gray-300">
-          Para habilitar o campo de <strong>Observações</strong> e garantir o funcionamento das mensagens de erro, 
-          é necessário atualizar a estrutura do banco.
+          Foi adicionado o módulo <strong>Controle de PAV</strong>. É necessário criar a tabela no Supabase.
         </p>
         <p className="mb-2 font-semibold">Copie o código SQL abaixo:</p>
         <div className="bg-gray-950 p-4 rounded border border-gray-700 font-mono text-sm overflow-auto max-h-64 mb-4 select-all">
