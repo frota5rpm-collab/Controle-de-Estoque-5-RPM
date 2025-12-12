@@ -36,7 +36,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
             className="h-24 mb-4 drop-shadow-md"
             style={{ height: '6rem' }}
           />
-          <h1 className="text-2xl font-bold text-pmmg-primary text-center">Controle de Estoque 5ª RPM</h1>
+          <h1 className="text-2xl font-bold text-pmmg-primary text-center">Controles Frota 5ª RPM</h1>
           <p className="text-gray-500 text-sm mt-1">Acesso Restrito</p>
         </div>
 
