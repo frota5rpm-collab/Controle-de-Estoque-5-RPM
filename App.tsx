@@ -54,6 +54,7 @@ function App() {
               src={shieldUrl} 
               alt="Escudo PMMG" 
               className="h-28 drop-shadow-xl filter brightness-110"
+              style={{ height: '7rem' }}
             />
           </div>
 
