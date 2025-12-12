@@ -32,6 +32,9 @@ export const PavModule: React.FC<PavModuleProps> = ({ onBack, userEmail, onLogou
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isEditing, setIsEditing] = useState<PavProcess | null>(null);
 
+  // Estado para exclusão segura
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
   // Estado do Formulário
   const initialForm = {
     fraction: '',
@@ -39,7 +42,6 @@ export const PavModule: React.FC<PavModuleProps> = ({ onBack, userEmail, onLogou
     vehicle_plate: '',
     accident_date: '',
     reds_number: '',
-    sicor_number: '',
     pav_number: '',
     inquirer: '',
     sent_to_inquirer: false,
@@ -49,6 +51,9 @@ export const PavModule: React.FC<PavModuleProps> = ({ onBack, userEmail, onLogou
     observations: ''
   };
   const [formData, setFormData] = useState(initialForm);
+
+  // Estado para Erros de Validação
+  const [errors, setErrors] = useState<Record<string, boolean>>({});
 
   // Fetch Data
   const fetchProcesses = async () => {
@@ -72,12 +77,38 @@ export const PavModule: React.FC<PavModuleProps> = ({ onBack, userEmail, onLogou
 
   // Handlers
   const handleSave = async () => {
-    try {
-        if (!formData.vehicle_prefix || !formData.reds_number) {
-            alert("Prefixo e Nº REDS são obrigatórios.");
-            return;
-        }
+    // 1. Validação de Campos Obrigatórios
+    const requiredFields = [
+        'fraction', 
+        'vehicle_prefix', 
+        'vehicle_plate', 
+        'reds_number', 
+        'accident_date', 
+        'pav_number', 
+        'inquirer', 
+        'os_number', 
+        'os_request_date'
+    ];
+    
+    const newErrors: Record<string, boolean> = {};
+    let hasError = false;
 
+    requiredFields.forEach(field => {
+        if (!formData[field as keyof typeof formData]) {
+            newErrors[field] = true;
+            hasError = true;
+        }
+    });
+
+    setErrors(newErrors);
+
+    if (hasError) {
+        alert("Por favor, preencha todos os campos obrigatórios (marcados em vermelho).");
+        return;
+    }
+
+    // 2. Salvar Dados
+    try {
         const payload = {
             ...formData,
             accident_date: formData.accident_date || null,
@@ -97,6 +128,7 @@ export const PavModule: React.FC<PavModuleProps> = ({ onBack, userEmail, onLogou
 
         setIsModalOpen(false);
         setFormData(initialForm);
+        setErrors({});
         setIsEditing(null);
         fetchProcesses();
 
@@ -105,11 +137,18 @@ export const PavModule: React.FC<PavModuleProps> = ({ onBack, userEmail, onLogou
     }
   };
 
-  const handleDelete = async (id: string) => {
-      if (confirm("Tem certeza que deseja excluir este processo?")) {
-          const { error } = await supabase.from('pav_processes').delete().eq('id', id);
-          if (error) alert("Erro ao excluir");
-          else fetchProcesses();
+  // Função para efetivar a exclusão após confirmação no modal
+  const confirmDelete = async () => {
+      if (!deletingId) return;
+
+      try {
+          const { error } = await supabase.from('pav_processes').delete().eq('id', deletingId);
+          if (error) throw error;
+          fetchProcesses();
+      } catch (e: any) {
+          alert("Erro ao excluir: " + e.message);
+      } finally {
+          setDeletingId(null);
       }
   };
 
@@ -139,7 +178,6 @@ export const PavModule: React.FC<PavModuleProps> = ({ onBack, userEmail, onLogou
                 reds_number: findValue(row, ['reds', 'bo']) || '',
                 accident_date: null, // Datas do Excel requerem tratamento específico, importando null por padrão para evitar erros, ou converter se for string ISO
                 pav_number: findValue(row, ['pav', 'n_pav']) || '',
-                sicor_number: findValue(row, ['sicor']) || '',
                 inquirer: findValue(row, ['encarregado']) || '',
                 sent_to_inquirer: isSent,
                 os_number: findValue(row, ['os', 'ordem']) || '',
@@ -178,6 +216,7 @@ export const PavModule: React.FC<PavModuleProps> = ({ onBack, userEmail, onLogou
   };
 
   const openModal = (process?: PavProcess) => {
+      setErrors({}); // Limpa erros ao abrir
       if (process) {
           setIsEditing(process);
           setFormData({
@@ -186,7 +225,6 @@ export const PavModule: React.FC<PavModuleProps> = ({ onBack, userEmail, onLogou
               vehicle_plate: process.vehicle_plate || '',
               accident_date: process.accident_date || '',
               reds_number: process.reds_number || '',
-              sicor_number: process.sicor_number || '',
               pav_number: process.pav_number || '',
               inquirer: process.inquirer || '',
               sent_to_inquirer: process.sent_to_inquirer || false,
@@ -200,6 +238,15 @@ export const PavModule: React.FC<PavModuleProps> = ({ onBack, userEmail, onLogou
           setFormData(initialForm);
       }
       setIsModalOpen(true);
+  };
+
+  // Helper para classes de input com erro
+  const getInputClass = (field: string) => {
+      const baseClass = "w-full border p-2 rounded focus:outline-none transition-colors ";
+      if (errors[field]) {
+          return baseClass + "border-red-500 bg-red-50 focus:ring-2 focus:ring-red-400";
+      }
+      return baseClass + "focus:ring-2 focus:ring-[#C5A059]";
   };
 
   // Filtragem e Ordenação
@@ -258,7 +305,7 @@ export const PavModule: React.FC<PavModuleProps> = ({ onBack, userEmail, onLogou
                 <img src={shieldUrl} alt="Escudo" className="h-12" />
                 <div>
                     <h1 className="text-2xl font-bold text-[#C5A059]">Controle de PAV</h1>
-                    <p className="text-xs text-gray-400">Polícia Administrativa - 5ª RPM</p>
+                    <p className="text-xs text-gray-400">Frota 5ª RPM</p>
                 </div>
              </div>
           </div>
@@ -390,8 +437,7 @@ export const PavModule: React.FC<PavModuleProps> = ({ onBack, userEmail, onLogou
                                 </td>
                                 <td className="p-3 border-r">
                                     {p.pav_number && <div className="text-xs font-mono">PAV: {p.pav_number}</div>}
-                                    {p.sicor_number && <div className="text-xs font-mono">SICOR: {p.sicor_number}</div>}
-                                    {!p.pav_number && !p.sicor_number && <span className="text-gray-400 italic">Pendente</span>}
+                                    {!p.pav_number && <span className="text-gray-400 italic">Pendente</span>}
                                 </td>
                                 <td className="p-3 border-r">
                                     <div className="font-medium">{p.inquirer || '-'}</div>
@@ -430,7 +476,7 @@ export const PavModule: React.FC<PavModuleProps> = ({ onBack, userEmail, onLogou
                                             <Edit size={16} />
                                         </button>
                                         <button 
-                                            onClick={() => handleDelete(p.id)}
+                                            onClick={() => setDeletingId(p.id)}
                                             className="p-1.5 text-red-600 hover:bg-red-50 rounded transition-colors"
                                             title="Excluir"
                                         >
@@ -444,6 +490,41 @@ export const PavModule: React.FC<PavModuleProps> = ({ onBack, userEmail, onLogou
                 </table>
             </div>
         </div>
+
+        {/* Modal de Confirmação de Exclusão */}
+        {deletingId && (
+            <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[60]">
+                <div className="bg-white p-6 rounded-lg shadow-2xl w-full max-w-md border-t-4 border-red-600">
+                    <div className="flex items-center gap-3 mb-4 text-red-700">
+                        <AlertCircle size={32} />
+                        <h3 className="text-xl font-bold">Confirmar Exclusão</h3>
+                    </div>
+                    
+                    <p className="text-gray-700 mb-6">
+                        Tem certeza que deseja excluir este processo de PAV? <br/>
+                        <span className="text-sm text-gray-500 mt-2 block">
+                            Esta ação não poderá ser desfeita.
+                        </span>
+                    </p>
+                    
+                    <div className="flex justify-end gap-3">
+                        <button 
+                            onClick={() => setDeletingId(null)}
+                            className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded border font-medium"
+                        >
+                            Cancelar
+                        </button>
+                        <button 
+                            onClick={confirmDelete}
+                            className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 shadow-md font-bold flex items-center gap-2"
+                        >
+                            <Trash2 size={18} />
+                            Sim, Excluir
+                        </button>
+                    </div>
+                </div>
+            </div>
+        )}
 
         {/* Modal de Cadastro/Edição */}
         {isModalOpen && (
@@ -464,48 +545,60 @@ export const PavModule: React.FC<PavModuleProps> = ({ onBack, userEmail, onLogou
                                 </h3>
                                 
                                 <div>
-                                    <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Unidade/Fração</label>
-                                    <input 
-                                        className="w-full border p-2 rounded focus:ring-2 focus:ring-[#C5A059] outline-none"
+                                    <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Unidade <span className="text-red-500">*</span></label>
+                                    <select 
+                                        className={getInputClass('fraction') + " bg-white"}
                                         value={formData.fraction}
                                         onChange={e => setFormData({...formData, fraction: e.target.value})}
-                                        placeholder="Ex: 5ª CIA IND"
-                                    />
+                                    >
+                                        <option value="">Selecione a Unidade...</option>
+                                        <option value="4° BPM">4° BPM</option>
+                                        <option value="67° BPM">67° BPM</option>
+                                        <option value="37° BPM">37° BPM</option>
+                                        <option value="69° BPM">69° BPM</option>
+                                        <option value="3ª CIA PM IND">3ª CIA PM IND</option>
+                                    </select>
                                 </div>
                                 <div className="grid grid-cols-2 gap-2">
                                     <div>
                                         <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Prefixo <span className="text-red-500">*</span></label>
                                         <input 
-                                            className="w-full border p-2 rounded focus:ring-2 focus:ring-[#C5A059] outline-none"
+                                            className={getInputClass('vehicle_prefix')}
                                             value={formData.vehicle_prefix}
-                                            onChange={e => setFormData({...formData, vehicle_prefix: e.target.value})}
-                                            placeholder="VP-12345"
+                                            onChange={e => {
+                                                const val = e.target.value.replace(/\D/g, '').slice(0, 5);
+                                                setFormData({...formData, vehicle_prefix: val});
+                                            }}
+                                            placeholder="12345"
                                         />
                                     </div>
                                     <div>
-                                        <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Placa</label>
+                                        <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Placa <span className="text-red-500">*</span></label>
                                         <input 
-                                            className="w-full border p-2 rounded focus:ring-2 focus:ring-[#C5A059] outline-none"
+                                            className={getInputClass('vehicle_plate')}
                                             value={formData.vehicle_plate}
-                                            onChange={e => setFormData({...formData, vehicle_plate: e.target.value})}
-                                            placeholder="ABC-1234"
+                                            onChange={e => {
+                                                const val = e.target.value.replace(/[^a-zA-Z0-9]/g, '').toUpperCase().slice(0, 7);
+                                                setFormData({...formData, vehicle_plate: val});
+                                            }}
+                                            placeholder="ABC1234"
                                         />
                                     </div>
                                 </div>
                                 <div>
                                     <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Nº REDS <span className="text-red-500">*</span></label>
                                     <input 
-                                        className="w-full border p-2 rounded focus:ring-2 focus:ring-[#C5A059] outline-none"
+                                        className={getInputClass('reds_number')}
                                         value={formData.reds_number}
                                         onChange={e => setFormData({...formData, reds_number: e.target.value})}
                                         placeholder="2024-..."
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Data do Acidente</label>
+                                    <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Data do Acidente <span className="text-red-500">*</span></label>
                                     <input 
                                         type="date"
-                                        className="w-full border p-2 rounded focus:ring-2 focus:ring-[#C5A059] outline-none"
+                                        className={getInputClass('accident_date')}
                                         value={formData.accident_date}
                                         onChange={e => setFormData({...formData, accident_date: e.target.value})}
                                     />
@@ -518,29 +611,19 @@ export const PavModule: React.FC<PavModuleProps> = ({ onBack, userEmail, onLogou
                                     <FileText size={16} /> Controle Administrativo
                                 </h3>
 
-                                <div className="grid grid-cols-2 gap-2">
-                                    <div>
-                                        <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Nº PAV</label>
-                                        <input 
-                                            className="w-full border p-2 rounded focus:ring-2 focus:ring-[#C5A059] outline-none"
-                                            value={formData.pav_number}
-                                            onChange={e => setFormData({...formData, pav_number: e.target.value})}
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Nº SICOR</label>
-                                        <input 
-                                            className="w-full border p-2 rounded focus:ring-2 focus:ring-[#C5A059] outline-none"
-                                            value={formData.sicor_number}
-                                            onChange={e => setFormData({...formData, sicor_number: e.target.value})}
-                                        />
-                                    </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Nº PAV <span className="text-red-500">*</span></label>
+                                    <input 
+                                        className={getInputClass('pav_number')}
+                                        value={formData.pav_number}
+                                        onChange={e => setFormData({...formData, pav_number: e.target.value})}
+                                    />
                                 </div>
 
                                 <div>
-                                    <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Encarregado PAV</label>
+                                    <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Encarregado PAV <span className="text-red-500">*</span></label>
                                     <input 
-                                        className="w-full border p-2 rounded focus:ring-2 focus:ring-[#C5A059] outline-none"
+                                        className={getInputClass('inquirer')}
                                         value={formData.inquirer}
                                         onChange={e => setFormData({...formData, inquirer: e.target.value})}
                                         placeholder="Posto/Grad e Nome"
@@ -556,7 +639,7 @@ export const PavModule: React.FC<PavModuleProps> = ({ onBack, userEmail, onLogou
                                         onChange={e => setFormData({...formData, sent_to_inquirer: e.target.checked})}
                                     />
                                     <label htmlFor="sent_to_inquirer" className="text-sm font-bold text-gray-700 select-none">
-                                        Enviado ao Encarregado?
+                                        Processo de Avarias enviado ao encarregado?
                                     </label>
                                 </div>
                             </div>
@@ -568,26 +651,26 @@ export const PavModule: React.FC<PavModuleProps> = ({ onBack, userEmail, onLogou
                                 </h3>
 
                                 <div>
-                                    <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Nº da OS (Portal)</label>
+                                    <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Nº da OS <span className="text-red-500">*</span></label>
                                     <input 
-                                        className="w-full border p-2 rounded focus:ring-2 focus:ring-[#C5A059] outline-none"
+                                        className={getInputClass('os_number')}
                                         value={formData.os_number}
                                         onChange={e => setFormData({...formData, os_number: e.target.value})}
                                     />
                                 </div>
 
                                 <div>
-                                    <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Data Solicitação OS</label>
+                                    <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Data Solicitação OS <span className="text-red-500">*</span></label>
                                     <input 
                                         type="date"
-                                        className="w-full border p-2 rounded focus:ring-2 focus:ring-[#C5A059] outline-none"
+                                        className={getInputClass('os_request_date')}
                                         value={formData.os_request_date}
                                         onChange={e => setFormData({...formData, os_request_date: e.target.value})}
                                     />
                                 </div>
 
                                 <div>
-                                    <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Data Reforço Cobrança</label>
+                                    <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Data Reforço Cobrança OS</label>
                                     <input 
                                         type="date"
                                         className="w-full border p-2 rounded focus:ring-2 focus:ring-[#C5A059] outline-none"

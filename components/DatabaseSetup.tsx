@@ -12,7 +12,6 @@ CREATE TABLE IF NOT EXISTS public.pav_processes (
     vehicle_plate TEXT,         -- Placa
     accident_date DATE,         -- Data do Acidente
     reds_number TEXT,           -- Nº REDS
-    sicor_number TEXT,          -- Nº SICOR
     pav_number TEXT,            -- Nº PAV
     inquirer TEXT,              -- Encarregado
     sent_to_inquirer BOOLEAN DEFAULT FALSE, -- Enviado ao encarregado?

@@ -41,7 +41,6 @@ export interface PavProcess {
   vehicle_plate: string;
   accident_date: string | null;
   reds_number: string;
-  sicor_number: string;
   pav_number: string;
   inquirer: string;
   sent_to_inquirer: boolean;
