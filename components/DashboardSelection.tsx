@@ -1,17 +1,40 @@
 import React from 'react';
-import { Package, Shield, LogOut } from 'lucide-react';
+import { Package, Shield, LogOut, KeyRound } from 'lucide-react';
 
 interface DashboardSelectionProps {
   onSelectModule: (module: 'STOCK' | 'PAV') => void;
   userEmail: string;
   onLogout: () => void;
+  onChangePassword: () => void;
 }
 
-export const DashboardSelection: React.FC<DashboardSelectionProps> = ({ onSelectModule, userEmail, onLogout }) => {
+export const DashboardSelection: React.FC<DashboardSelectionProps> = ({ 
+  onSelectModule, 
+  userEmail, 
+  onLogout,
+  onChangePassword
+}) => {
   const shieldUrl = "https://yaoebstgiagmrvlbozny.supabase.co/storage/v1/object/sign/Logo%20PMMG/ESCUDO%20PMMG.png?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV9mMjgyNzE5YS0xNjI0LTRiYTUtODk3MC1jNTc3ZDIzMTQ4YjUiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJMb2dvIFBNTUcvRVNDVURPIFBNTUcucG5nIiwiaWF0IjoxNzY1NDAzMzE0LCJleHAiOjIzOTYxMjMzMTR9.1uAuyEEDpwU_vmvKjnSJw0uYbcOIkB-vRpXRDU-Arss";
 
   return (
-    <div className="min-h-screen bg-[#958458] flex flex-col items-center justify-center p-4 font-sans">
+    <div className="min-h-screen bg-[#958458] flex flex-col items-center justify-center p-4 font-sans relative">
+      
+      {/* Botões Superiores (Logout e Senha) */}
+      <div className="absolute top-4 right-4 flex items-center gap-3">
+        <button 
+          onClick={onChangePassword}
+          className="flex items-center gap-2 text-white/80 hover:text-white transition-colors bg-black/20 hover:bg-black/30 px-4 py-2 rounded-full text-sm font-bold"
+        >
+          <KeyRound size={16} /> Alterar Senha
+        </button>
+        <button 
+          onClick={onLogout}
+          className="flex items-center gap-2 text-red-200 hover:text-red-100 transition-colors bg-red-900/20 hover:bg-red-900/40 px-4 py-2 rounded-full text-sm font-bold"
+        >
+          <LogOut size={16} /> Sair
+        </button>
+      </div>
+
       <div className="w-full max-w-4xl">
         
         {/* Cabeçalho do Menu */}
@@ -24,7 +47,10 @@ export const DashboardSelection: React.FC<DashboardSelectionProps> = ({ onSelect
           <h1 className="text-3xl md:text-4xl font-extrabold text-white drop-shadow-md font-serif mb-2">
             Sistema de Gestão Frota 5ª RPM
           </h1>
-          <p className="text-white/80">Bem-vindo, {userEmail}</p>
+          {/* Mensagem simples sem fundo/botão */}
+          <p className="text-white/90 text-lg font-medium">
+            Bem-vindo, {userEmail}
+          </p>
         </div>
 
         {/* Grid de Opções */}
@@ -41,6 +67,9 @@ export const DashboardSelection: React.FC<DashboardSelectionProps> = ({ onSelect
             <h2 className="text-2xl font-bold text-[#3E3223] mb-3 group-hover:text-[#C5A059] transition-colors">
               Controle de Estoque
             </h2>
+            <p className="text-gray-500 text-sm">
+                Gerencie materiais, mapa carga de viaturas e histórico de movimentações.
+            </p>
           </button>
 
           {/* Cartão 2: PAV */}
@@ -54,18 +83,15 @@ export const DashboardSelection: React.FC<DashboardSelectionProps> = ({ onSelect
             <h2 className="text-2xl font-bold text-[#3E3223] mb-3 group-hover:text-[#C5A059] transition-colors">
               Controle de PAV
             </h2>
+            <p className="text-gray-500 text-sm">
+                Gerencie processos administrativos de viaturas, prazos e envio de documentos.
+            </p>
           </button>
 
         </div>
-
-        {/* Botão de Sair */}
-        <div className="mt-12 text-center">
-          <button 
-            onClick={onLogout}
-            className="inline-flex items-center gap-2 text-white/70 hover:text-white transition-colors bg-black/20 hover:bg-black/30 px-6 py-2 rounded-full"
-          >
-            <LogOut size={18} /> Sair do Sistema
-          </button>
+        
+        <div className="mt-8 text-center text-white/40 text-xs">
+            © 2024 Polícia Militar de Minas Gerais - 5ª RPM
         </div>
 
       </div>

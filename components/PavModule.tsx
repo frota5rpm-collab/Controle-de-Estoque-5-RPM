@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Home, LogOut, FileText, Plus, Search, Edit, Trash2, CheckCircle, XCircle, Calendar, AlertCircle, FileUp, Filter, ArrowUp, ArrowDown, ArrowUpDown, MessageSquare, MapPin } from 'lucide-react';
+import { Home, FileText, Plus, Search, Edit, Trash2, CheckCircle, XCircle, Calendar, AlertCircle, FileUp, Filter, ArrowUp, ArrowDown, ArrowUpDown, MessageSquare, MapPin, LogOut } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { PavProcess } from '../types';
 import { exportToExcel, parseExcel } from '../utils/excel';
@@ -327,16 +327,25 @@ export const PavModule: React.FC<PavModuleProps> = ({ onBack, userEmail, onLogou
              <p className="text-lg font-bold text-[#C5A059] opacity-90 tracking-widest font-serif">
                 FROTA 5ª RPM
              </p>
-             <div className="flex items-center justify-end gap-3 mt-1">
-                 <span className="text-xs text-gray-300 opacity-70 hidden md:inline">{userEmail}</span>
-                 <button 
-                    onClick={onLogout}
-                    className="text-red-300 hover:text-red-100 flex items-center gap-1 text-xs font-bold uppercase tracking-wider"
-                    title="Sair"
-                >
-                    <LogOut size={14} /> Sair
-                </button>
+             {/* Mensagem simples de boas vindas */}
+             <div className="text-right mt-1">
+                 <span className="text-sm font-semibold text-white/90">
+                    Bem-vindo, {userEmail}
+                 </span>
              </div>
+          </div>
+        </div>
+
+        {/* Sub-header com Logout (Igual ao App.tsx, mas sem abas) */}
+        <div className="bg-[#4A3B2A]/90 backdrop-blur-sm text-white/90">
+          <div className="container mx-auto px-4 flex justify-end items-center py-2">
+             <button 
+               onClick={onLogout}
+               className="flex items-center gap-2 px-4 py-2 text-red-200 hover:text-red-100 hover:bg-red-900/30 rounded transition-colors text-sm font-semibold whitespace-nowrap"
+               title="Sair do sistema"
+             >
+               <LogOut size={18} /> <span className="hidden sm:inline">Sair</span>
+             </button>
           </div>
         </div>
       </header>

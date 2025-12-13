@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Package, Truck, History, LogOut, Home } from 'lucide-react';
+import { Package, Truck, History, LogOut, Home, KeyRound, Eye, EyeOff } from 'lucide-react';
 import { InventoryTab } from './components/InventoryTab';
 import { MovementsTab } from './components/MovementsTab';
 import { FleetTab } from './components/FleetTab';
@@ -20,8 +20,18 @@ function App() {
   
   // Estados de Autenticação
   const [session, setSession] = useState<any>(null);
-  const [isManualAuth, setIsManualAuth] = useState(false);
   const [authLoading, setAuthLoading] = useState(true);
+
+  // Estado Modal Alterar Senha (Logado)
+  const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState(''); // Confirmação
+  
+  // Estados de visibilidade de senha
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmNewPassword, setShowConfirmNewPassword] = useState(false);
+
+  const [passwordMsg, setPasswordMsg] = useState<{text: string, type: 'success'|'error'} | null>(null);
 
   useEffect(() => {
     // 1. Verificar conexão com banco
@@ -30,20 +40,23 @@ function App() {
     // 2. Verificar Sessão Supabase
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
-      // Se não tem sessão Supabase, verifica se tem sessão Manual (LocalStorage)
-      if (!session) {
-        const localAuth = localStorage.getItem('pmmg_auth');
-        if (localAuth === 'true') {
-            setIsManualAuth(true);
-        }
-      }
       setAuthLoading(false);
+      
+      // Se tiver token na URL, limpa
+      if (window.location.hash && window.location.hash.includes('access_token')) {
+          window.history.replaceState(null, '', window.location.pathname);
+      }
     });
 
     // 3. Ouvir mudanças na autenticação Supabase
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       setSession(session);
-      if (session) setIsManualAuth(false); // Prioriza Supabase
+      setAuthLoading(false);
+      
+      // Limpeza de URL
+      if (window.location.hash && window.location.hash.includes('access_token')) {
+          window.history.replaceState(null, '', window.location.pathname);
+      }
     });
 
     return () => subscription.unsubscribe();
@@ -51,15 +64,37 @@ function App() {
 
   // Função Unificada de Logout
   const handleLogout = async () => {
-    await supabase.auth.signOut(); // Logout Supabase
-    localStorage.removeItem('pmmg_auth'); // Logout Manual
+    await supabase.auth.signOut();
     setSession(null);
-    setIsManualAuth(false);
     setCurrentModule(null);
+    setActiveTab('inventory');
   };
 
-  const handleManualLoginSuccess = () => {
-      setIsManualAuth(true);
+  // Função para alterar senha (usuário logado)
+  const handleChangePassword = async () => {
+    if (newPassword.length < 6) {
+        setPasswordMsg({ text: "A senha deve ter no mínimo 6 caracteres.", type: 'error' });
+        return;
+    }
+    
+    if (newPassword !== confirmPassword) {
+        setPasswordMsg({ text: "As senhas não conferem.", type: 'error' });
+        return;
+    }
+
+    try {
+        const { error } = await supabase.auth.updateUser({ password: newPassword });
+        if (error) throw error;
+        setPasswordMsg({ text: "Senha alterada com sucesso!", type: 'success' });
+        setTimeout(() => {
+            setIsPasswordModalOpen(false);
+            setNewPassword('');
+            setConfirmPassword('');
+            setPasswordMsg(null);
+        }, 1500);
+    } catch (err: any) {
+        setPasswordMsg({ text: "Erro ao alterar senha: " + err.message, type: 'error' });
+    }
   };
 
   // ----- RENDERING FLOW -----
@@ -73,11 +108,9 @@ function App() {
      );
   }
 
-  // 2. Tela de Login (Se não tiver sessão nem manual nem Supabase)
-  const isAuthenticated = session || isManualAuth;
-  
-  if (!isAuthenticated) {
-    return <LoginScreen onLoginSuccess={handleManualLoginSuccess} />;
+  // 2. Tela de Login (Se não tiver sessão Supabase)
+  if (!session) {
+    return <LoginScreen />;
   }
 
   // 3. Configuração de Banco (apenas se conectado e houver erro de conexão com tabelas)
@@ -85,16 +118,105 @@ function App() {
     return <DatabaseSetup />;
   }
 
-  const userEmail = session?.user?.email || 'frota5rpm@gmail.com';
+  // Recupera nome dos metadados ou usa o email
+  const userFullName = session?.user?.user_metadata?.full_name || session?.user?.email || 'Militar';
 
   // 4. Tela de Seleção de Módulo (Dashboard)
   if (!currentModule) {
     return (
-      <DashboardSelection 
-        onSelectModule={setCurrentModule} 
-        userEmail={userEmail}
-        onLogout={handleLogout}
-      />
+      <>
+        <DashboardSelection 
+          onSelectModule={setCurrentModule} 
+          userEmail={userFullName} 
+          onLogout={handleLogout}
+          onChangePassword={() => setIsPasswordModalOpen(true)}
+        />
+        {/* Modal de Senha (Renderizado globalmente se necessário aqui) */}
+        {isPasswordModalOpen && (
+            <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-[90] p-4">
+                <div className="bg-white p-6 rounded-lg shadow-2xl w-full max-w-sm border-t-4 border-[#C5A059]">
+                    <h3 className="text-lg font-bold text-[#3E3223] mb-4 flex items-center gap-2">
+                        <KeyRound size={20} className="text-[#C5A059]" />
+                        Nova Senha
+                    </h3>
+                    
+                    <div className="space-y-4">
+                        <div>
+                            <label className="block text-sm font-bold text-gray-700 mb-1">Nova Senha</label>
+                            <div className="relative">
+                                <input 
+                                    type={showNewPassword ? "text" : "password"}
+                                    className="w-full border p-2 rounded focus:ring-2 focus:ring-[#C5A059] outline-none pr-10"
+                                    placeholder="Mínimo 6 caracteres"
+                                    value={newPassword}
+                                    onChange={e => setNewPassword(e.target.value)}
+                                />
+                                <button
+                                    type="button"
+                                    onClick={() => setShowNewPassword(!showNewPassword)}
+                                    className="absolute right-3 top-2.5 text-gray-400 hover:text-gray-600 focus:outline-none"
+                                >
+                                    {showNewPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                                </button>
+                            </div>
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-bold text-gray-700 mb-1">Confirmar Senha</label>
+                            <div className="relative">
+                                <input 
+                                    type={showConfirmNewPassword ? "text" : "password"}
+                                    className={`w-full border p-2 rounded focus:ring-2 outline-none pr-10 ${
+                                        confirmPassword && newPassword !== confirmPassword ? 'border-red-500' : 'focus:ring-[#C5A059]'
+                                    }`}
+                                    placeholder="Digite novamente"
+                                    value={confirmPassword}
+                                    onChange={e => setConfirmPassword(e.target.value)}
+                                />
+                                <button
+                                    type="button"
+                                    onClick={() => setShowConfirmNewPassword(!showConfirmNewPassword)}
+                                    className="absolute right-3 top-2.5 text-gray-400 hover:text-gray-600 focus:outline-none"
+                                >
+                                    {showConfirmNewPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                                </button>
+                            </div>
+                        </div>
+                        
+                        {passwordMsg && (
+                            <div className={`text-sm p-2 rounded ${
+                                passwordMsg.type === 'success' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                            }`}>
+                                {passwordMsg.text}
+                            </div>
+                        )}
+
+                        <div className="flex justify-end gap-2 pt-2">
+                            <button 
+                                onClick={() => { 
+                                    setIsPasswordModalOpen(false); 
+                                    setNewPassword(''); 
+                                    setConfirmPassword(''); 
+                                    setPasswordMsg(null);
+                                    setShowNewPassword(false);
+                                    setShowConfirmNewPassword(false);
+                                }}
+                                className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded"
+                            >
+                                Cancelar
+                            </button>
+                            <button 
+                                onClick={handleChangePassword}
+                                className="px-4 py-2 bg-[#3E3223] text-white rounded hover:bg-[#2a2218]"
+                            >
+                                Salvar Senha
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        )}
+      </>
     );
   }
 
@@ -103,7 +225,7 @@ function App() {
     return (
       <PavModule 
         onBack={() => setCurrentModule(null)} 
-        userEmail={userEmail}
+        userEmail={userFullName}
         onLogout={handleLogout}
       />
     );
@@ -136,15 +258,21 @@ function App() {
             />
           </div>
 
-          {/* Lado Direito: Título */}
-          <div className="text-right">
+          {/* Lado Direito: Título e Saudação */}
+          <div className="text-right flex flex-col items-end">
             <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight text-[#C5A059] drop-shadow-md shadow-black/50 font-serif uppercase">
               CONTROLE DE ESTOQUE
             </h1>
-            <p className="text-lg font-bold text-[#C5A059] opacity-90 tracking-widest font-serif">
+            <p className="text-lg font-bold text-[#C5A059] opacity-90 tracking-widest font-serif mb-1">
               FROTA 5ª RPM
             </p>
-            <p className="text-xs text-gray-300 mt-1 opacity-70">Logado como: {userEmail}</p>
+            
+            {/* Mensagem simples de boas vindas sem botão de senha */}
+            <div className="mt-1">
+                <span className="text-sm font-semibold text-white/90">
+                   Bem-vindo, {userFullName}
+                </span>
+            </div>
           </div>
         </div>
         
