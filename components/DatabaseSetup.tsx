@@ -6,14 +6,14 @@ export const DatabaseSetup: React.FC = () => {
 
   const sql = `
 -- =========================================================
--- SCRIPT ATUALIZADO (RECUPERAÇÃO VIA CÓDIGO MESTRE)
+-- SCRIPT ATUALIZADO (TABELAS + DADOS DE TESTE) v3
 -- Execute este script no SQL Editor do Supabase
 -- =========================================================
 
--- 1. HABILITAR CRIPTOGRAFIA (Essencial para senhas)
+-- 1. HABILITAR CRIPTOGRAFIA
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
--- 2. TABELA DE PERFIS (Vincula o Nº PM ao usuário)
+-- 2. TABELA DE PERFIS
 CREATE TABLE IF NOT EXISTS public.profiles (
     id UUID REFERENCES auth.users ON DELETE CASCADE PRIMARY KEY,
     pm_number TEXT UNIQUE NOT NULL,
@@ -22,7 +22,6 @@ CREATE TABLE IF NOT EXISTS public.profiles (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
--- Permissões de Segurança (RLS)
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "Public Read Profiles" ON public.profiles;
@@ -34,7 +33,7 @@ CREATE POLICY "Users Insert Self" ON public.profiles FOR INSERT WITH CHECK (auth
 DROP POLICY IF EXISTS "Users Update Self" ON public.profiles;
 CREATE POLICY "Users Update Self" ON public.profiles FOR UPDATE USING (auth.uid() = id);
 
--- 3. GATILHO AUTOMÁTICO (Cria o perfil assim que o usuário se cadastra)
+-- 3. GATILHO AUTOMÁTICO PERFIL
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -55,8 +54,7 @@ CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
   FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
 
--- 4. FUNÇÃO DE REDEFINIÇÃO DE SENHA (A Mágica acontece aqui)
--- Permite trocar a senha usando apenas PM + Código Mestre + Nova Senha
+-- 4. FUNÇÃO DE REDEFINIÇÃO DE SENHA
 CREATE OR REPLACE FUNCTION public.reset_password_via_pm(
     target_pm text, 
     new_password text, 
@@ -64,29 +62,25 @@ CREATE OR REPLACE FUNCTION public.reset_password_via_pm(
 )
 RETURNS text
 LANGUAGE plpgsql
-SECURITY DEFINER -- Executa com permissão de administrador
+SECURITY DEFINER
 AS $$
 DECLARE
   target_user_id uuid;
 BEGIN
-  -- Valida o Código Mestre
   IF secret_code <> 'FROTA5RPM' THEN
      RAISE EXCEPTION 'Código Mestre da Seção incorreto.';
   END IF;
 
-  -- Valida tamanho da senha
   IF length(new_password) < 6 THEN
      RAISE EXCEPTION 'A senha deve ter no mínimo 6 caracteres.';
   END IF;
 
-  -- Busca o ID do usuário baseado no Nº PM
   SELECT id INTO target_user_id FROM public.profiles WHERE pm_number = target_pm;
   
   IF target_user_id IS NULL THEN
      RAISE EXCEPTION 'Nº PM não encontrado no sistema.';
   END IF;
 
-  -- Atualiza a senha criptografada diretamente na tabela de autenticação
   UPDATE auth.users
   SET encrypted_password = crypt(new_password, gen_salt('bf')),
       updated_at = now()
@@ -97,7 +91,9 @@ END;
 $$;
 
 
--- 5. ESTRUTURA DOS MÓDULOS (Se ainda não existirem)
+-- 5. TABELAS DO SISTEMA (ESTOQUE, FROTA, PAV E AGENDA)
+
+-- Materiais
 CREATE TABLE IF NOT EXISTS public.materials (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     name TEXT NOT NULL,
@@ -106,6 +102,7 @@ CREATE TABLE IF NOT EXISTS public.materials (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
+-- Viaturas
 CREATE TABLE IF NOT EXISTS public.vehicles (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     prefix TEXT NOT NULL,
@@ -115,6 +112,7 @@ CREATE TABLE IF NOT EXISTS public.vehicles (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
+-- Movimentações Estoque
 CREATE TABLE IF NOT EXISTS public.movements (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     material_id UUID REFERENCES public.materials(id) ON DELETE CASCADE,
@@ -127,9 +125,42 @@ CREATE TABLE IF NOT EXISTS public.movements (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
+-- Processos PAV
+CREATE TABLE IF NOT EXISTS public.pav_processes (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    fraction TEXT,
+    vehicle_prefix TEXT,
+    vehicle_plate TEXT,
+    accident_date DATE,
+    reds_number TEXT,
+    pav_number TEXT,
+    inquirer TEXT,
+    sent_to_inquirer BOOLEAN DEFAULT FALSE,
+    os_request_date DATE,
+    os_number TEXT,
+    os_followup_date DATE,
+    observations TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+-- Agenda de Viaturas (NOVO)
+CREATE TABLE IF NOT EXISTS public.vehicle_schedules (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    vehicle_prefix TEXT NOT NULL,
+    driver_name TEXT NOT NULL,
+    reason TEXT NOT NULL,
+    start_time TIMESTAMP WITH TIME ZONE NOT NULL,
+    end_time TIMESTAMP WITH TIME ZONE NOT NULL,
+    observations TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+-- Permissões (RLS)
 ALTER TABLE public.materials ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.vehicles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.movements ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.pav_processes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.vehicle_schedules ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "Public Access Materials" ON public.materials;
 CREATE POLICY "Public Access Materials" ON public.materials FOR ALL USING (true) WITH CHECK (true);
@@ -140,6 +171,13 @@ CREATE POLICY "Public Access Vehicles" ON public.vehicles FOR ALL USING (true) W
 DROP POLICY IF EXISTS "Public Access Movements" ON public.movements;
 CREATE POLICY "Public Access Movements" ON public.movements FOR ALL USING (true) WITH CHECK (true);
 
+DROP POLICY IF EXISTS "Public Access PAV" ON public.pav_processes;
+CREATE POLICY "Public Access PAV" ON public.pav_processes FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Public Access Schedules" ON public.vehicle_schedules;
+CREATE POLICY "Public Access Schedules" ON public.vehicle_schedules FOR ALL USING (true) WITH CHECK (true);
+
+-- Trigger de Estoque
 CREATE OR REPLACE FUNCTION handle_inventory_update() RETURNS TRIGGER AS $$
 BEGIN
     IF (TG_OP = 'DELETE' OR TG_OP = 'UPDATE') THEN
@@ -165,26 +203,58 @@ CREATE TRIGGER trigger_inventory_update
 AFTER INSERT OR UPDATE OR DELETE ON public.movements
 FOR EACH ROW EXECUTE FUNCTION handle_inventory_update();
 
-CREATE TABLE IF NOT EXISTS public.pav_processes (
-    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-    fraction TEXT,
-    vehicle_prefix TEXT,
-    vehicle_plate TEXT,
-    accident_date DATE,
-    reds_number TEXT,
-    pav_number TEXT,
-    inquirer TEXT,
-    sent_to_inquirer BOOLEAN DEFAULT FALSE,
-    os_request_date DATE,
-    os_number TEXT,
-    os_followup_date DATE,
-    observations TEXT,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
-);
 
-ALTER TABLE public.pav_processes ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS "Public Access PAV" ON public.pav_processes;
-CREATE POLICY "Public Access PAV" ON public.pav_processes FOR ALL USING (true) WITH CHECK (true);
+-- =========================================================
+-- DADOS DE TESTE (Inserção Condicional)
+-- =========================================================
+
+-- Inserir Viaturas de Teste (se não existirem)
+INSERT INTO public.vehicles (prefix, plate, model, fraction)
+SELECT '32550', 'RMX-9I99', 'L200 TRITON', '5 RPM'
+WHERE NOT EXISTS (SELECT 1 FROM public.vehicles WHERE prefix = '32550');
+
+INSERT INTO public.vehicles (prefix, plate, model, fraction)
+SELECT '29759', 'PMM-1234', 'DUSTER', '4 BPM'
+WHERE NOT EXISTS (SELECT 1 FROM public.vehicles WHERE prefix = '29759');
+
+INSERT INTO public.vehicles (prefix, plate, model, fraction)
+SELECT '12345', 'ABC-1234', 'PALIO WEEKEND', '37 BPM'
+WHERE NOT EXISTS (SELECT 1 FROM public.vehicles WHERE prefix = '12345');
+
+-- Inserir Agendamentos de Teste
+-- Agendamento 1: Hoje, 08:00 as 12:00
+INSERT INTO public.vehicle_schedules (vehicle_prefix, driver_name, reason, start_time, end_time, observations)
+SELECT 
+    '32550', 
+    'CB TESTE', 
+    'MANUTENÇÃO', 
+    (CURRENT_DATE + TIME '08:00:00'), 
+    (CURRENT_DATE + TIME '12:00:00'), 
+    'Troca de óleo agendada'
+WHERE NOT EXISTS (SELECT 1 FROM public.vehicle_schedules WHERE vehicle_prefix = '32550' AND start_time = (CURRENT_DATE + TIME '08:00:00'));
+
+-- Agendamento 2: Hoje, 14:00 as 18:00 (Mesma viatura, horário diferente - OK)
+INSERT INTO public.vehicle_schedules (vehicle_prefix, driver_name, reason, start_time, end_time, observations)
+SELECT 
+    '32550', 
+    'SD EXEMPLO', 
+    'APOIO EVENTO', 
+    (CURRENT_DATE + TIME '14:00:00'), 
+    (CURRENT_DATE + TIME '18:00:00'), 
+    'Apoio no centro da cidade'
+WHERE NOT EXISTS (SELECT 1 FROM public.vehicle_schedules WHERE vehicle_prefix = '32550' AND start_time = (CURRENT_DATE + TIME '14:00:00'));
+
+-- Agendamento 3: Amanhã, dia todo (Outra viatura)
+-- Correção de sintaxe timestamp
+INSERT INTO public.vehicle_schedules (vehicle_prefix, driver_name, reason, start_time, end_time, observations)
+SELECT 
+    '29759', 
+    'SGT ADMINISTRATIVO', 
+    'VIAGEM BH', 
+    ((CURRENT_DATE + 1) + TIME '06:00:00'), 
+    ((CURRENT_DATE + 1) + TIME '20:00:00'), 
+    'Viagem administrativa para capital'
+WHERE NOT EXISTS (SELECT 1 FROM public.vehicle_schedules WHERE vehicle_prefix = '29759' AND start_time = ((CURRENT_DATE + 1) + TIME '06:00:00'));
   `;
 
   const handleCopy = () => {
@@ -200,7 +270,7 @@ CREATE POLICY "Public Access PAV" ON public.pav_processes FOR ALL USING (true) W
             <Database className="text-blue-400" size={32} />
             <div>
                 <h2 className="text-2xl font-bold text-white">Configuração do Banco de Dados</h2>
-                <p className="text-gray-400 text-sm">Atualize o banco para ativar a nova recuperação de senha.</p>
+                <p className="text-gray-400 text-sm">Atualize o banco para incluir a tabela de Agenda de Viaturas e Dados de Teste.</p>
             </div>
         </div>
 

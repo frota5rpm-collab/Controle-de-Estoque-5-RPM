@@ -51,4 +51,15 @@ export interface PavProcess {
   created_at: string;
 }
 
+export interface VehicleSchedule {
+  id: string;
+  vehicle_prefix: string;
+  driver_name: string;
+  reason: string;
+  start_time: string; // ISO String (Data + Hora)
+  end_time: string;   // ISO String (Data + Hora)
+  observations: string;
+  created_at: string;
+}
+
 export type Tab = 'inventory' | 'movements' | 'fleet' | 'setup';

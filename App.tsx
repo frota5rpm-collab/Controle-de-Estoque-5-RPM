@@ -8,10 +8,11 @@ import { DatabaseSetup } from './components/DatabaseSetup';
 import { LoginScreen } from './components/LoginScreen';
 import { DashboardSelection } from './components/DashboardSelection';
 import { PavModule } from './components/PavModule';
+import { VehicleScheduleModule } from './components/VehicleScheduleModule';
 import { Tab } from './types';
 
 // Tipos de módulo disponíveis
-type ModuleType = 'STOCK' | 'PAV' | null;
+type ModuleType = 'STOCK' | 'PAV' | 'SCHEDULE' | null;
 
 function App() {
   const [activeTab, setActiveTab] = useState<Tab>('inventory');
@@ -220,7 +221,18 @@ function App() {
     );
   }
 
-  // 5. Módulo PAV
+  // 5. Módulo Agenda de Viatura
+  if (currentModule === 'SCHEDULE') {
+      return (
+        <VehicleScheduleModule 
+          onBack={() => setCurrentModule(null)}
+          userEmail={userFullName}
+          onLogout={handleLogout}
+        />
+      );
+  }
+
+  // 6. Módulo PAV
   if (currentModule === 'PAV') {
     return (
       <PavModule 
@@ -231,7 +243,7 @@ function App() {
     );
   }
 
-  // 6. Módulo ESTOQUE (Aplicação original)
+  // 7. Módulo ESTOQUE (Aplicação original)
   const shieldUrl = "https://yaoebstgiagmrvlbozny.supabase.co/storage/v1/object/sign/Logo%20PMMG/ESCUDO%20PMMG.png?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV9mMjgyNzE5YS0xNjI0LTRiYTUtODk3MC1jNTc3ZDIzMTQ4YjUiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJMb2dvIFBNTUcvRVNDVURPIFBNTUcucG5nIiwiaWF0IjoxNzY1NDAzMzE0LCJleHAiOjIzOTYxMjMzMTR9.1uAuyEEDpwU_vmvKjnSJw0uYbcOIkB-vRpXRDU-Arss";
 
   return (

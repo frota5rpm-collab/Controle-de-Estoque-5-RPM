@@ -1,8 +1,8 @@
 import React from 'react';
-import { Package, Shield, LogOut, KeyRound } from 'lucide-react';
+import { Package, Shield, LogOut, KeyRound, CalendarClock } from 'lucide-react';
 
 interface DashboardSelectionProps {
-  onSelectModule: (module: 'STOCK' | 'PAV') => void;
+  onSelectModule: (module: 'STOCK' | 'PAV' | 'SCHEDULE') => void;
   userEmail: string;
   onLogout: () => void;
   onChangePassword: () => void;
@@ -35,7 +35,7 @@ export const DashboardSelection: React.FC<DashboardSelectionProps> = ({
         </button>
       </div>
 
-      <div className="w-full max-w-4xl">
+      <div className="w-full max-w-6xl">
         
         {/* Cabeçalho do Menu */}
         <div className="text-center mb-10">
@@ -54,7 +54,7 @@ export const DashboardSelection: React.FC<DashboardSelectionProps> = ({
         </div>
 
         {/* Grid de Opções */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           
           {/* Cartão 1: Estoque & Frota */}
           <button 
@@ -72,13 +72,29 @@ export const DashboardSelection: React.FC<DashboardSelectionProps> = ({
             </p>
           </button>
 
-          {/* Cartão 2: PAV */}
+          {/* Cartão 2: Agenda de Viatura */}
           <button 
-            onClick={() => onSelectModule('PAV')}
+            onClick={() => onSelectModule('SCHEDULE')}
             className="group bg-[#fdfbf7] p-8 rounded-xl shadow-2xl border-t-8 border-[#C5A059] hover:scale-[1.02] transition-all duration-300 flex flex-col items-center text-center cursor-pointer"
           >
             <div className="bg-[#C5A059]/10 p-6 rounded-full mb-6 group-hover:bg-[#C5A059]/20 transition-colors">
-              <Shield size={48} className="text-[#C5A059]" />
+              <CalendarClock size={48} className="text-[#C5A059]" />
+            </div>
+            <h2 className="text-2xl font-bold text-[#3E3223] mb-3 group-hover:text-[#C5A059] transition-colors">
+              Agenda de Viatura
+            </h2>
+            <p className="text-gray-500 text-sm">
+                Agendamento de veículos com controle automático de conflitos de horário.
+            </p>
+          </button>
+
+          {/* Cartão 3: PAV */}
+          <button 
+            onClick={() => onSelectModule('PAV')}
+            className="group bg-[#fdfbf7] p-8 rounded-xl shadow-2xl border-t-8 border-[#3E3223] hover:scale-[1.02] transition-all duration-300 flex flex-col items-center text-center cursor-pointer"
+          >
+            <div className="bg-[#3E3223]/10 p-6 rounded-full mb-6 group-hover:bg-[#3E3223]/20 transition-colors">
+              <Shield size={48} className="text-[#3E3223]" />
             </div>
             <h2 className="text-2xl font-bold text-[#3E3223] mb-3 group-hover:text-[#C5A059] transition-colors">
               Controle de PAV
