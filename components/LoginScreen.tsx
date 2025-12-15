@@ -31,10 +31,22 @@ export const LoginScreen: React.FC<LoginScreenProps> = () => {
 
   const shieldUrl = "https://yaoebstgiagmrvlbozny.supabase.co/storage/v1/object/sign/Logo%20PMMG/ESCUDO%20PMMG.png?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV9mMjgyNzE5YS0xNjI0LTRiYTUtODk3MC1jNTc3ZDIzMTQ4YjUiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJMb2dvIFBNTUcvRVNDVURPIFBNTUcucG5nIiwiaWF0IjoxNzY1NDAzMzE0LCJleHAiOjIzOTYxMjMzMTR9.1uAuyEEDpwU_vmvKjnSJw0uYbcOIkB-vRpXRDU-Arss";
 
-  // Validação de PM
+  // Formata o PM para 123.456-7
+  const formatPmNumber = (value: string) => {
+      // Remove tudo que não é dígito e limita a 7 caracteres
+      let v = value.replace(/\D/g, '').slice(0, 7);
+      
+      // Aplica a máscara
+      if (v.length > 6) {
+          v = v.replace(/^(\d{3})(\d{3})(\d)/, '$1.$2-$3');
+      } else if (v.length > 3) {
+          v = v.replace(/^(\d{3})(\d)/, '$1.$2');
+      }
+      return v;
+  };
+
   const handlePmChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-      const val = e.target.value.replace(/\D/g, '').slice(0, 7);
-      setPmNumber(val);
+      setPmNumber(formatPmNumber(e.target.value));
   };
 
   const handleAuth = async (e: React.FormEvent) => {
@@ -42,8 +54,11 @@ export const LoginScreen: React.FC<LoginScreenProps> = () => {
     setLoading(true);
     setMessage(null);
 
+    // Remove a máscara para processar internamente (o banco usa apenas números)
+    const cleanPm = pmNumber.replace(/\D/g, '');
+
     // Validações Comuns
-    if (pmNumber.length < 3) {
+    if (cleanPm.length < 3) {
         setMessage({ text: "Nº PM inválido.", type: 'error' });
         setLoading(false);
         return;
@@ -66,7 +81,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = () => {
           options: {
               data: {
                   full_name: fullName,
-                  pm_number: pmNumber
+                  pm_number: cleanPm // Envia sem máscara
               }
           }
         });
@@ -77,7 +92,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = () => {
             try {
                 await supabase.from('profiles').upsert({
                     id: authData.user.id,
-                    pm_number: pmNumber,
+                    pm_number: cleanPm, // Envia sem máscara
                     email: realEmail,
                     full_name: fullName
                 }, { onConflict: 'id' });
@@ -93,11 +108,11 @@ export const LoginScreen: React.FC<LoginScreenProps> = () => {
 
       } else if (mode === 'LOGIN') {
         // --- LOGIN ---
-        // 1. Buscar qual é o e-mail deste PM
+        // 1. Buscar qual é o e-mail deste PM usando o número limpo
         const { data: profiles, error: profileError } = await supabase
             .from('profiles')
             .select('email')
-            .eq('pm_number', pmNumber)
+            .eq('pm_number', cleanPm) 
             .single();
 
         if (profileError || !profiles) {
@@ -121,9 +136,9 @@ export const LoginScreen: React.FC<LoginScreenProps> = () => {
         if (password.length < 6) throw new Error("A nova senha deve ter no mínimo 6 caracteres.");
         if (password !== confirmPassword) throw new Error("As senhas digitadas não conferem.");
 
-        // Chama a função RPC segura no banco de dados
+        // Chama a função RPC segura no banco de dados usando o número limpo
         const { data: rpcData, error: rpcError } = await supabase.rpc('reset_password_via_pm', {
-            target_pm: pmNumber,
+            target_pm: cleanPm,
             new_password: password,
             secret_code: sectionCode
         });
@@ -208,9 +223,9 @@ export const LoginScreen: React.FC<LoginScreenProps> = () => {
               <input
                 type="text"
                 required
-                maxLength={9}
+                maxLength={9} // Limita a 9 caracteres (123.456-7)
                 className="w-full pl-10 pr-4 py-2 border rounded-md focus:ring-2 focus:ring-pmmg-primary outline-none tracking-widest font-mono font-bold text-gray-800 text-lg"
-                placeholder="Ex: 1234567"
+                placeholder="123.456-7"
                 value={pmNumber}
                 onChange={handlePmChange}
                 disabled={loading}
