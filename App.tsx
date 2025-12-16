@@ -114,8 +114,9 @@ function App() {
     return <LoginScreen />;
   }
 
-  // 3. Configuração de Banco (apenas se conectado e houver erro de conexão com tabelas)
+  // 3. Configuração de Banco (Falha na conexão)
   if (isConnected === false) {
+    // Se a conexão falhou automaticamente, mostra sem botão de voltar (exige reload)
     return <DatabaseSetup />;
   }
 

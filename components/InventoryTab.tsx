@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { Material } from '../types';
-import { Edit, FileDown, FileUp, AlertTriangle, Search, ArrowUpDown, ArrowUp, ArrowDown, XCircle } from 'lucide-react';
+import { Edit, FileDown, FileUp, AlertTriangle, Search, ArrowUpDown, ArrowUp, ArrowDown, XCircle, Car } from 'lucide-react';
 import { exportToExcel, parseExcel } from '../utils/excel';
 
 type SortKey = 'name' | 'quantity' | 'status' | 'unit';
@@ -22,7 +22,12 @@ export const InventoryTab: React.FC = () => {
   const [isEditing, setIsEditing] = useState<Material | null>(null);
   
   // Form states
-  const [formData, setFormData] = useState<Partial<Material>>({ name: '', quantity: 0, unit: 'Unidade' });
+  const [formData, setFormData] = useState<Partial<Material>>({ 
+      name: '', 
+      quantity: 0, 
+      unit: 'Unidade',
+      compatible_vehicles: '' 
+  });
 
   const fetchMaterials = async () => {
     setLoading(true);
@@ -53,19 +58,20 @@ export const InventoryTab: React.FC = () => {
     if (!isEditing || !isEditing.id) return;
 
     try {
-      // Atualiza nome e unidade. Quantidade é via Movimentações.
+      // Atualiza nome, unidade e veículos compatíveis. Quantidade é via Movimentações.
       const { error } = await supabase
         .from('materials')
         .update({ 
           name: formData.name, 
-          unit: formData.unit 
+          unit: formData.unit,
+          compatible_vehicles: formData.compatible_vehicles
         })
         .eq('id', isEditing.id);
 
       if (error) throw error;
 
       setIsEditing(null);
-      setFormData({ name: '', quantity: 0, unit: 'Unidade' });
+      setFormData({ name: '', quantity: 0, unit: 'Unidade', compatible_vehicles: '' });
       fetchMaterials();
     } catch (err: any) {
       alert(`Erro ao salvar: ${err.message || JSON.stringify(err)}`);
@@ -90,7 +96,8 @@ export const InventoryTab: React.FC = () => {
         const formattedData = data.map((row: any) => ({
           name: findValue(row, ['material', 'nome', 'name', 'item', 'descricao']),
           quantity: Number(findValue(row, ['quantidade', 'qtd', 'quantity', 'saldo', 'quant']) || 0),
-          unit: findValue(row, ['unidade', 'medida', 'unit', 'und', 'tipo']) || 'Unidade'
+          unit: findValue(row, ['unidade', 'medida', 'unit', 'und', 'tipo']) || 'Unidade',
+          compatible_vehicles: findValue(row, ['compatibilidade', 'veiculos', 'compativel']) || ''
         })).filter(r => r.name); // Filtra linhas que tenham pelo menos nome
 
         if (formattedData.length > 0) {
@@ -133,7 +140,9 @@ export const InventoryTab: React.FC = () => {
     .filter(m => {
       const status = getStatus(m);
       const matchesFilter = filter === 'ALL' || status === filter;
-      const matchesSearch = m.name.toLowerCase().includes(search.toLowerCase());
+      const matchesSearch = 
+        m.name.toLowerCase().includes(search.toLowerCase()) || 
+        (m.compatible_vehicles || '').toLowerCase().includes(search.toLowerCase());
       return matchesFilter && matchesSearch;
     })
     .sort((a, b) => {
@@ -168,7 +177,7 @@ export const InventoryTab: React.FC = () => {
             <Search className="absolute left-2 top-2.5 h-4 w-4 text-gray-400" />
             <input
               type="text"
-              placeholder="Buscar material..."
+              placeholder="Buscar material ou veículo compatível..."
               className="pl-8 pr-4 py-2 border rounded-md w-full focus:ring-2 focus:ring-pmmg-primary outline-none"
               value={search}
               onChange={e => setSearch(e.target.value)}
@@ -199,7 +208,6 @@ export const InventoryTab: React.FC = () => {
           >
             <FileDown size={16} /> <span className="hidden sm:inline">Exportar Excel</span>
           </button>
-          {/* Botão Novo Material removido conforme solicitação */}
         </div>
       </div>
 
@@ -235,6 +243,19 @@ export const InventoryTab: React.FC = () => {
                   placeholder="Ex: Unidade, Litros, Caixa, Kg..."
                 />
               </div>
+              
+              {/* CAMPO DE VEÍCULOS COMPATÍVEIS */}
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-1">Veículos Compatíveis (Opcional)</label>
+                <input 
+                  type="text" 
+                  className="w-full border p-2 rounded focus:ring-2 focus:ring-pmmg-primary outline-none" 
+                  value={formData.compatible_vehicles || ''} 
+                  onChange={e => setFormData({...formData, compatible_vehicles: e.target.value})}
+                  placeholder="Ex: L200, Duster, Palio..."
+                />
+              </div>
+
               <div>
                 <label className="block text-sm font-bold text-gray-700 mb-1">
                   Quantidade
@@ -309,7 +330,16 @@ export const InventoryTab: React.FC = () => {
                 const status = getStatus(item);
                 return (
                   <tr key={item.id} className="border-b hover:bg-amber-50/50 transition-colors">
-                    <td className="p-4 font-medium text-gray-800">{item.name}</td>
+                    <td className="p-4 font-medium text-gray-800">
+                        <div>{item.name}</div>
+                        {/* Exibe Veículos Compatíveis na Tabela se houver */}
+                        {item.compatible_vehicles && (
+                            <div className="text-xs text-gray-500 mt-1 flex items-center gap-1">
+                                <Car size={12} className="text-pmmg-accent" /> 
+                                <span className="font-semibold text-gray-600">Compatível:</span> {item.compatible_vehicles}
+                            </div>
+                        )}
+                    </td>
                     <td className="p-4 text-center font-mono text-lg font-bold text-gray-700">{item.quantity}</td>
                     <td className="p-4 text-center text-gray-600 text-sm">{item.unit || '-'}</td>
                     <td className="p-4 text-center">
@@ -332,7 +362,7 @@ export const InventoryTab: React.FC = () => {
                     <td className="p-4 text-right">
                       <div className="flex justify-end gap-2">
                         <button 
-                          onClick={() => { setIsEditing(item); setFormData(item); }}
+                          onClick={() => { setIsEditing(item); setFormData({ ...item, compatible_vehicles: item.compatible_vehicles || '' }); }}
                           className="p-2 text-pmmg-primary hover:bg-pmmg-primary/10 rounded-full transition-colors"
                           title="Editar"
                         >

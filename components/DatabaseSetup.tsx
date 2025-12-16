@@ -1,13 +1,17 @@
 import React, { useState } from 'react';
-import { Copy, Check, Database } from 'lucide-react';
+import { Copy, Check, Database, ArrowLeft } from 'lucide-react';
 
-export const DatabaseSetup: React.FC = () => {
+interface DatabaseSetupProps {
+  onBack?: () => void;
+}
+
+export const DatabaseSetup: React.FC<DatabaseSetupProps> = ({ onBack }) => {
   const [copied, setCopied] = useState(false);
 
   const sql = `
 -- =========================================================
--- SCRIPT ATUALIZADO (TABELAS + DADOS DE TESTE) v3
--- Execute este script no SQL Editor do Supabase
+-- SCRIPT ATUALIZADO (TABELAS + DADOS DE TESTE) v5
+-- Execute este script no SQL Editor do Supabase para corrigir a tabela
 -- =========================================================
 
 -- 1. HABILITAR CRIPTOGRAFIA
@@ -101,6 +105,9 @@ CREATE TABLE IF NOT EXISTS public.materials (
     unit TEXT DEFAULT 'Unidade',
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
+
+-- ATUALIZAÇÃO v5: Adicionar coluna de compatibilidade se não existir
+ALTER TABLE public.materials ADD COLUMN IF NOT EXISTS compatible_vehicles TEXT;
 
 -- Viaturas
 CREATE TABLE IF NOT EXISTS public.vehicles (
@@ -202,59 +209,6 @@ DROP TRIGGER IF EXISTS trigger_inventory_update ON public.movements;
 CREATE TRIGGER trigger_inventory_update
 AFTER INSERT OR UPDATE OR DELETE ON public.movements
 FOR EACH ROW EXECUTE FUNCTION handle_inventory_update();
-
-
--- =========================================================
--- DADOS DE TESTE (Inserção Condicional)
--- =========================================================
-
--- Inserir Viaturas de Teste (se não existirem)
-INSERT INTO public.vehicles (prefix, plate, model, fraction)
-SELECT '32550', 'RMX-9I99', 'L200 TRITON', '5 RPM'
-WHERE NOT EXISTS (SELECT 1 FROM public.vehicles WHERE prefix = '32550');
-
-INSERT INTO public.vehicles (prefix, plate, model, fraction)
-SELECT '29759', 'PMM-1234', 'DUSTER', '4 BPM'
-WHERE NOT EXISTS (SELECT 1 FROM public.vehicles WHERE prefix = '29759');
-
-INSERT INTO public.vehicles (prefix, plate, model, fraction)
-SELECT '12345', 'ABC-1234', 'PALIO WEEKEND', '37 BPM'
-WHERE NOT EXISTS (SELECT 1 FROM public.vehicles WHERE prefix = '12345');
-
--- Inserir Agendamentos de Teste
--- Agendamento 1: Hoje, 08:00 as 12:00
-INSERT INTO public.vehicle_schedules (vehicle_prefix, driver_name, reason, start_time, end_time, observations)
-SELECT 
-    '32550', 
-    'CB TESTE', 
-    'MANUTENÇÃO', 
-    (CURRENT_DATE + TIME '08:00:00'), 
-    (CURRENT_DATE + TIME '12:00:00'), 
-    'Troca de óleo agendada'
-WHERE NOT EXISTS (SELECT 1 FROM public.vehicle_schedules WHERE vehicle_prefix = '32550' AND start_time = (CURRENT_DATE + TIME '08:00:00'));
-
--- Agendamento 2: Hoje, 14:00 as 18:00 (Mesma viatura, horário diferente - OK)
-INSERT INTO public.vehicle_schedules (vehicle_prefix, driver_name, reason, start_time, end_time, observations)
-SELECT 
-    '32550', 
-    'SD EXEMPLO', 
-    'APOIO EVENTO', 
-    (CURRENT_DATE + TIME '14:00:00'), 
-    (CURRENT_DATE + TIME '18:00:00'), 
-    'Apoio no centro da cidade'
-WHERE NOT EXISTS (SELECT 1 FROM public.vehicle_schedules WHERE vehicle_prefix = '32550' AND start_time = (CURRENT_DATE + TIME '14:00:00'));
-
--- Agendamento 3: Amanhã, dia todo (Outra viatura)
--- Correção de sintaxe timestamp
-INSERT INTO public.vehicle_schedules (vehicle_prefix, driver_name, reason, start_time, end_time, observations)
-SELECT 
-    '29759', 
-    'SGT ADMINISTRATIVO', 
-    'VIAGEM BH', 
-    ((CURRENT_DATE + 1) + TIME '06:00:00'), 
-    ((CURRENT_DATE + 1) + TIME '20:00:00'), 
-    'Viagem administrativa para capital'
-WHERE NOT EXISTS (SELECT 1 FROM public.vehicle_schedules WHERE vehicle_prefix = '29759' AND start_time = ((CURRENT_DATE + 1) + TIME '06:00:00'));
   `;
 
   const handleCopy = () => {
@@ -265,13 +219,20 @@ WHERE NOT EXISTS (SELECT 1 FROM public.vehicle_schedules WHERE vehicle_prefix = 
 
   return (
     <div className="fixed inset-0 bg-gray-900 flex items-center justify-center p-4 z-50 text-white overflow-y-auto">
-      <div className="bg-gray-800 p-8 rounded-lg max-w-4xl w-full shadow-2xl my-8 border border-gray-700">
-        <div className="flex items-center gap-3 mb-6 border-b border-gray-700 pb-4">
-            <Database className="text-blue-400" size={32} />
-            <div>
-                <h2 className="text-2xl font-bold text-white">Configuração do Banco de Dados</h2>
-                <p className="text-gray-400 text-sm">Atualize o banco para incluir a tabela de Agenda de Viaturas e Dados de Teste.</p>
+      <div className="bg-gray-800 p-8 rounded-lg max-w-4xl w-full shadow-2xl my-8 border border-gray-700 animate-fade-in">
+        <div className="flex items-center justify-between mb-6 border-b border-gray-700 pb-4">
+            <div className="flex items-center gap-3">
+                <Database className="text-blue-400" size={32} />
+                <div>
+                    <h2 className="text-2xl font-bold text-white">Configuração do Banco de Dados</h2>
+                    <p className="text-gray-400 text-sm">Atualize o banco para incluir novos campos e tabelas.</p>
+                </div>
             </div>
+            {onBack && (
+                <button onClick={onBack} className="text-gray-400 hover:text-white">
+                    <ArrowLeft size={24} />
+                </button>
+            )}
         </div>
 
         <div className="bg-blue-900/30 border border-blue-500/30 p-4 rounded mb-6">
@@ -301,12 +262,21 @@ WHERE NOT EXISTS (SELECT 1 FROM public.vehicle_schedules WHERE vehicle_prefix = 
             </div>
         </div>
 
-        <button 
-          onClick={() => window.location.reload()}
-          className="w-full py-4 bg-blue-600 hover:bg-blue-700 rounded-lg font-bold text-lg transition shadow-lg hover:shadow-blue-500/20"
-        >
-          Já executei o SQL, Tentar Novamente
-        </button>
+        {onBack ? (
+            <button 
+                onClick={onBack}
+                className="w-full py-4 bg-gray-700 hover:bg-gray-600 rounded-lg font-bold text-lg transition shadow-lg"
+            >
+                Voltar ao Sistema
+            </button>
+        ) : (
+            <button 
+                onClick={() => window.location.reload()}
+                className="w-full py-4 bg-blue-600 hover:bg-blue-700 rounded-lg font-bold text-lg transition shadow-lg hover:shadow-blue-500/20"
+            >
+                Já executei o SQL, Tentar Novamente
+            </button>
+        )}
       </div>
     </div>
   );

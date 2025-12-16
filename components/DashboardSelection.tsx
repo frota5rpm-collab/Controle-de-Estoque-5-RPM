@@ -19,8 +19,8 @@ export const DashboardSelection: React.FC<DashboardSelectionProps> = ({
   return (
     <div className="min-h-screen bg-[#958458] flex flex-col items-center justify-center p-4 font-sans relative">
       
-      {/* Botões Superiores (Logout e Senha) */}
-      <div className="absolute top-4 right-4 flex items-center gap-3">
+      {/* Botões Superiores */}
+      <div className="absolute top-4 right-4 flex items-center gap-2 flex-wrap justify-end">
         <button 
           onClick={onChangePassword}
           className="flex items-center gap-2 text-white/80 hover:text-white transition-colors bg-black/20 hover:bg-black/30 px-4 py-2 rounded-full text-sm font-bold"
@@ -35,7 +35,7 @@ export const DashboardSelection: React.FC<DashboardSelectionProps> = ({
         </button>
       </div>
 
-      <div className="w-full max-w-6xl">
+      <div className="w-full max-w-6xl mt-12 md:mt-0">
         
         {/* Cabeçalho do Menu */}
         <div className="text-center mb-10">

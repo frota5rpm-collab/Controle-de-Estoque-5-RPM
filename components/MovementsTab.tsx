@@ -20,7 +20,11 @@ export const MovementsTab: React.FC = () => {
 
   // Estado para cadastro rápido de novo material
   const [isAddingMaterial, setIsAddingMaterial] = useState(false);
-  const [newMaterialData, setNewMaterialData] = useState({ name: '', unit: 'Unidade' });
+  const [newMaterialData, setNewMaterialData] = useState({ 
+    name: '', 
+    unit: 'Unidade',
+    compatible_vehicles: '' 
+  });
 
   // Sorting
   const [sortConfig, setSortConfig] = useState<{ key: SortKey; direction: 'ASC' | 'DESC' }>({ 
@@ -92,7 +96,12 @@ export const MovementsTab: React.FC = () => {
       try {
           const { data, error } = await supabase
               .from('materials')
-              .insert([{ name: newMaterialData.name, quantity: 0, unit: newMaterialData.unit }])
+              .insert([{ 
+                name: newMaterialData.name, 
+                quantity: 0, 
+                unit: newMaterialData.unit,
+                compatible_vehicles: newMaterialData.compatible_vehicles 
+              }])
               .select()
               .single();
 
@@ -109,7 +118,7 @@ export const MovementsTab: React.FC = () => {
           
           // Fecha modal
           setIsAddingMaterial(false);
-          setNewMaterialData({ name: '', unit: 'Unidade' });
+          setNewMaterialData({ name: '', unit: 'Unidade', compatible_vehicles: '' });
 
       } catch (err: any) {
           alert("Erro ao criar material: " + err.message);
@@ -324,6 +333,15 @@ export const MovementsTab: React.FC = () => {
                               value={newMaterialData.unit}
                               onChange={e => setNewMaterialData({...newMaterialData, unit: e.target.value})}
                               placeholder="Ex: Unidade, Litros, Caixa, Kg..."
+                          />
+                      </div>
+                      <div>
+                          <label className="text-sm font-bold text-gray-700">Veículos Compatíveis <span className="text-gray-400 text-xs font-normal">(Opcional)</span></label>
+                          <input 
+                              className="w-full border p-2 rounded focus:ring-2 focus:ring-pmmg-primary outline-none"
+                              value={newMaterialData.compatible_vehicles}
+                              onChange={e => setNewMaterialData({...newMaterialData, compatible_vehicles: e.target.value})}
+                              placeholder="Ex: L200, Palio, Duster..."
                           />
                       </div>
                       <div className="flex justify-end gap-2 mt-4">

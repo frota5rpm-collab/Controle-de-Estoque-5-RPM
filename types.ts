@@ -5,6 +5,7 @@ export interface Material {
   quantity: number;
   unit?: string; // Unidade de medida (ex: Unidade, Litros, Kg)
   min_quantity: number;
+  compatible_vehicles?: string; // Veículos compatíveis com o material
   created_at?: string;
 }
 
