@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Home, CalendarClock, Plus, Search, Trash2, LogOut, Car, User, Clock, AlertTriangle, Info, Truck, Edit, Settings, CheckSquare, Square, XCircle, Calendar, X, FileDown, FileText, ArrowRight, AlertCircle } from 'lucide-react';
+import { Home, CalendarClock, Plus, Search, Trash2, LogOut, Car, User, Clock, AlertTriangle, Info, Truck, Edit, Settings, CheckSquare, Square, XCircle, Calendar, X, FileDown, FileText, ArrowRight, AlertCircle, Layers, CalendarPlus, MinusCircle, AlertOctagon } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { VehicleSchedule, Vehicle } from '../types';
 import { exportToExcel } from '../utils/excel';
@@ -37,6 +37,11 @@ export const VehicleScheduleModule: React.FC<VehicleScheduleModuleProps> = ({ on
   const [errorMessage, setErrorMessage] = useState<string | null>(null); // Erros gerais de validação
   const [formErrors, setFormErrors] = useState<Record<string, boolean>>({}); // Campos específicos com erro
 
+  // --- NOVO: ESTADOS PARA MÚLTIPLOS DIAS ---
+  const [isMultiDayMode, setIsMultiDayMode] = useState(false);
+  const [multiDates, setMultiDates] = useState<string[]>([]);
+  const [dateToAdd, setDateToAdd] = useState('');
+
   // Form Data Agendamento
   const initialForm = {
     vehicle_prefix: '',
@@ -65,7 +70,7 @@ export const VehicleScheduleModule: React.FC<VehicleScheduleModuleProps> = ({ on
         const { data: schData, error: schError } = await supabase
             .from('vehicle_schedules')
             .select('*')
-            .order('start_time', { ascending: false });
+            .order('start_time', { ascending: true }); 
         
         if (schError) throw schError;
         setSchedules(schData || []);
@@ -91,6 +96,25 @@ export const VehicleScheduleModule: React.FC<VehicleScheduleModuleProps> = ({ on
   useEffect(() => {
     fetchData();
   }, []);
+
+  // --- LÓGICA DE DETECÇÃO VISUAL DE CONFLITO (NA LISTA) ---
+  const hasScheduleConflict = (current: VehicleSchedule): boolean => {
+      const currentStart = new Date(current.start_time).getTime();
+      const currentEnd = new Date(current.end_time).getTime();
+
+      return schedules.some(other => {
+          // Não comparar consigo mesmo
+          if (other.id === current.id) return false;
+          // Deve ser a mesma viatura
+          if (other.vehicle_prefix !== current.vehicle_prefix) return false;
+
+          const otherStart = new Date(other.start_time).getTime();
+          const otherEnd = new Date(other.end_time).getTime();
+
+          // Lógica de intersecção
+          return (currentStart < otherEnd && currentEnd > otherStart);
+      });
+  };
 
   // --- LÓGICA DE AGENDAMENTO ---
 
@@ -119,6 +143,8 @@ export const VehicleScheduleModule: React.FC<VehicleScheduleModuleProps> = ({ on
       setConflictError(null);
       setErrorMessage(null);
       setFormErrors({});
+      setIsMultiDayMode(false); // Edição é sempre modo único
+      setMultiDates([]);
       
       const startDate = new Date(schedule.start_time);
       const endDate = new Date(schedule.end_time);
@@ -151,6 +177,9 @@ export const VehicleScheduleModule: React.FC<VehicleScheduleModuleProps> = ({ on
       setConflictError(null);
       setErrorMessage(null);
       setFormErrors({});
+      setIsMultiDayMode(false); // Reset para modo único padrão
+      setMultiDates([]);
+      setDateToAdd('');
   };
 
   // Helper para classes de input com erro visual
@@ -162,22 +191,51 @@ export const VehicleScheduleModule: React.FC<VehicleScheduleModuleProps> = ({ on
       return baseClass + "focus:ring-2 focus:ring-[#C5A059]";
   };
 
-  const handleSaveSchedule = async () => {
+  // Funções para Multi-Datas
+  const addDateToList = () => {
+      if (!dateToAdd) return;
+      if (multiDates.includes(dateToAdd)) {
+          alert("Esta data já foi adicionada.");
+          return;
+      }
+      // Ordena as datas ao inserir
+      const newDates = [...multiDates, dateToAdd].sort();
+      setMultiDates(newDates);
+      setDateToAdd('');
+  };
+
+  const removeDateFromList = (dateToRemove: string) => {
+      setMultiDates(multiDates.filter(d => d !== dateToRemove));
+  };
+
+  // forceSave = ignora verificações de conflito
+  const handleSaveSchedule = async (forceSave: boolean = false) => {
     setConflictError(null); 
     setErrorMessage(null);
     setFormErrors({});
 
-    // 1. Validação de Campos Obrigatórios
-    const requiredFields = ['vehicle_prefix', 'start_date', 'end_date', 'start_hour', 'end_hour', 'driver_name', 'reason'];
+    // 1. Validação de Campos Básicos (Comuns aos dois modos)
+    const requiredFieldsCommon = ['vehicle_prefix', 'start_hour', 'end_hour', 'driver_name', 'reason'];
     const newErrors: Record<string, boolean> = {};
     let hasEmptyFields = false;
 
-    requiredFields.forEach((field) => {
+    requiredFieldsCommon.forEach((field) => {
         if (!formData[field as keyof typeof formData]) {
             newErrors[field] = true;
             hasEmptyFields = true;
         }
     });
+
+    // Validação específica por modo
+    if (isMultiDayMode) {
+        if (multiDates.length === 0) {
+            setErrorMessage("Adicione pelo menos uma data à lista para o agendamento em lote.");
+            return;
+        }
+    } else {
+        if (!formData.start_date) { newErrors['start_date'] = true; hasEmptyFields = true; }
+        if (!formData.end_date) { newErrors['end_date'] = true; hasEmptyFields = true; }
+    }
 
     if (hasEmptyFields) {
         setFormErrors(newErrors);
@@ -185,93 +243,161 @@ export const VehicleScheduleModule: React.FC<VehicleScheduleModuleProps> = ({ on
         return;
     }
 
-    // 2. Validação Lógica de Data/Hora
-    const startDateTime = new Date(`${formData.start_date}T${formData.start_hour}:00`);
-    const endDateTime = new Date(`${formData.end_date}T${formData.end_hour}:00`);
+    // --- PREPARAÇÃO DOS DADOS PARA SALVAR ---
+    const schedulesToInsert: any[] = [];
+    
+    // Formata o erro de conflito
+    const formatConflict = (d: Date) => d.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
 
-    // Valida se as datas são válidas (ex: usuário digitou hora 25:00 manualmente)
-    if (isNaN(startDateTime.getTime()) || isNaN(endDateTime.getTime())) {
-        setErrorMessage("Horário ou data inválida. Verifique os campos.");
-        return;
-    }
+    // LÓGICA MÚLTIPLA VS ÚNICA
+    if (isMultiDayMode) {
+        // Loop sobre todas as datas selecionadas
+        for (const dateStr of multiDates) {
+            const currentStart = new Date(`${dateStr}T${formData.start_hour}:00`);
+            let currentEnd = new Date(`${dateStr}T${formData.end_hour}:00`);
 
-    if (endDateTime <= startDateTime) {
-        setFormErrors({
-            ...newErrors,
-            end_date: true,
-            end_hour: true,
-            start_date: true,
-            start_hour: true
-        });
-        setErrorMessage("A data/hora de término deve ser posterior à data/hora de início.");
-        return;
-    }
+            // Se hora fim for menor que inicio (ex: 22h as 02h), assume dia seguinte
+            if (currentEnd <= currentStart) {
+                currentEnd.setDate(currentEnd.getDate() + 1);
+            }
 
-    // 3. Verificar Conflito
-    const conflictingSchedule = checkConflict(
-        startDateTime, 
-        endDateTime, 
-        formData.vehicle_prefix, 
-        editingScheduleId || undefined
-    );
+            if (isNaN(currentStart.getTime()) || isNaN(currentEnd.getTime())) {
+                setErrorMessage("Horário inválido.");
+                return;
+            }
 
-    if (conflictingSchedule) {
-        const conflictStart = new Date(conflictingSchedule.start_time);
-        const conflictEnd = new Date(conflictingSchedule.end_time);
-        
-        const formatConflict = (d: Date) => d.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+            // Se NÃO estiver forçando, checa conflito
+            if (!forceSave) {
+                const conflict = checkConflict(currentStart, currentEnd, formData.vehicle_prefix);
+                if (conflict) {
+                     const conflictStart = new Date(conflict.start_time);
+                     const conflictEnd = new Date(conflict.end_time);
+                     
+                     setConflictError(
+                        <div className="bg-red-50 border-l-4 border-red-500 p-4 mb-4 rounded shadow-sm animate-fade-in">
+                            <div className="flex items-center gap-2 text-red-700 font-bold mb-2">
+                                <XCircle size={20} />
+                                <span>CONFLITO NA DATA {new Date(dateStr).toLocaleDateString('pt-BR')}</span>
+                            </div>
+                            <p className="text-sm text-gray-700 mb-2">
+                                A viatura <strong>{formData.vehicle_prefix}</strong> já possui agendamento neste dia:
+                            </p>
+                            <div className="bg-white p-3 rounded border border-red-200 text-sm shadow-inner mb-3">
+                                <p className="text-gray-800">
+                                    <strong>Período Ocupado:</strong> <span className="text-red-600 font-bold">{formatConflict(conflictStart)} até {formatConflict(conflictEnd)}</span>
+                                </p>
+                                <p className="text-gray-800 mt-1"><strong>Responsável:</strong> {conflict.driver_name}</p>
+                            </div>
+                            <div className="flex justify-end gap-2">
+                                <button 
+                                    onClick={() => handleSaveSchedule(true)} 
+                                    className="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded text-sm shadow-md transition-colors"
+                                >
+                                    IGNORAR CONFLITO E SALVAR
+                                </button>
+                            </div>
+                        </div>
+                    );
+                    return; // Para tudo se achar um conflito
+                }
+            }
 
-        // Define a mensagem de erro visual para aparecer DENTRO do modal
-        setConflictError(
-            <div className="bg-red-50 border-l-4 border-red-500 p-4 mb-4 rounded shadow-sm animate-fade-in">
-                <div className="flex items-center gap-2 text-red-700 font-bold mb-2">
-                    <XCircle size={20} />
-                    <span>CONFLITO DE AGENDA DETECTADO</span>
-                </div>
-                <p className="text-sm text-gray-700 mb-2">
-                    A viatura <strong>{formData.vehicle_prefix}</strong> já possui um agendamento neste intervalo:
-                </p>
-                <div className="bg-white p-3 rounded border border-red-200 text-sm shadow-inner">
-                    <p className="text-gray-800">
-                        <strong>Período Ocupado:</strong><br/>
-                        <span className="text-red-600 font-bold">
-                            {formatConflict(conflictStart)} até {formatConflict(conflictEnd)}
-                        </span>
-                    </p>
-                    <p className="text-gray-800 mt-1"><strong>Responsável:</strong> {conflictingSchedule.driver_name}</p>
-                    <p className="text-gray-800"><strong>Motivo:</strong> {conflictingSchedule.reason}</p>
-                </div>
-                <p className="text-xs text-red-600 mt-3 font-bold text-center uppercase">
-                    Por favor, altere o horário ou a viatura acima para prosseguir.
-                </p>
-            </div>
-        );
-        return; // Interrompe o salvamento
-    }
+            schedulesToInsert.push({
+                vehicle_prefix: formData.vehicle_prefix,
+                driver_name: formData.driver_name.toUpperCase(),
+                reason: formData.reason.toUpperCase(),
+                start_time: currentStart.toISOString(),
+                end_time: currentEnd.toISOString(),
+                observations: formData.observations
+            });
+        }
 
-    try {
-        const payload = {
+    } else {
+        // Lógica ÚNICA (Padrão)
+        const startDateTime = new Date(`${formData.start_date}T${formData.start_hour}:00`);
+        const endDateTime = new Date(`${formData.end_date}T${formData.end_hour}:00`);
+
+        if (isNaN(startDateTime.getTime()) || isNaN(endDateTime.getTime())) {
+            setErrorMessage("Horário ou data inválida.");
+            return;
+        }
+
+        if (endDateTime <= startDateTime) {
+            setFormErrors({ ...newErrors, end_date: true, end_hour: true, start_date: true, start_hour: true });
+            setErrorMessage("A data/hora de término deve ser posterior à data/hora de início.");
+            return;
+        }
+
+        // Se NÃO estiver forçando, checa conflito
+        if (!forceSave) {
+            const conflict = checkConflict(startDateTime, endDateTime, formData.vehicle_prefix, editingScheduleId || undefined);
+
+            if (conflict) {
+                const conflictStart = new Date(conflict.start_time);
+                const conflictEnd = new Date(conflict.end_time);
+                setConflictError(
+                    <div className="bg-red-50 border-l-4 border-red-500 p-4 mb-4 rounded shadow-sm animate-fade-in">
+                        <div className="flex items-center gap-2 text-red-700 font-bold mb-2">
+                            <XCircle size={20} />
+                            <span>CONFLITO DE AGENDA DETECTADO</span>
+                        </div>
+                        <p className="text-sm text-gray-700 mb-2">
+                            A viatura <strong>{formData.vehicle_prefix}</strong> já possui um agendamento neste intervalo:
+                        </p>
+                        <div className="bg-white p-3 rounded border border-red-200 text-sm shadow-inner mb-3">
+                            <p className="text-gray-800">
+                                <strong>Período Ocupado:</strong><br/>
+                                <span className="text-red-600 font-bold">
+                                    {formatConflict(conflictStart)} até {formatConflict(conflictEnd)}
+                                </span>
+                            </p>
+                            <p className="text-gray-800 mt-1"><strong>Responsável:</strong> {conflict.driver_name}</p>
+                            <p className="text-gray-800"><strong>Motivo:</strong> {conflict.reason}</p>
+                        </div>
+                         <div className="flex justify-end gap-2">
+                             <button 
+                                onClick={() => handleSaveSchedule(true)} 
+                                className="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded text-sm shadow-md transition-colors"
+                            >
+                                IGNORAR CONFLITO E SALVAR
+                            </button>
+                        </div>
+                    </div>
+                );
+                return;
+            }
+        }
+
+        schedulesToInsert.push({
             vehicle_prefix: formData.vehicle_prefix,
             driver_name: formData.driver_name.toUpperCase(),
             reason: formData.reason.toUpperCase(),
             start_time: startDateTime.toISOString(),
             end_time: endDateTime.toISOString(),
             observations: formData.observations
-        };
+        });
+    }
 
-        if (editingScheduleId) {
-            // Update
+    // --- EXECUÇÃO DO SAVE ---
+    try {
+        if (editingScheduleId && !isMultiDayMode) {
+            // Update (apenas modo único)
             const { error } = await supabase
                 .from('vehicle_schedules')
-                .update(payload)
+                .update(schedulesToInsert[0])
                 .eq('id', editingScheduleId);
             if (error) throw error;
             alert("Agendamento atualizado com sucesso!");
         } else {
-            // Insert
-            const { error } = await supabase.from('vehicle_schedules').insert([payload]);
+            // Insert (Único ou Múltiplo)
+            const { error } = await supabase.from('vehicle_schedules').insert(schedulesToInsert);
             if (error) throw error;
-            alert("Agendamento realizado com sucesso!");
+            
+            if(isMultiDayMode) {
+                alert(`${schedulesToInsert.length} agendamentos criados com sucesso!`);
+            } else {
+                alert("Agendamento realizado com sucesso!");
+            }
         }
 
         setIsModalOpen(false);
@@ -280,6 +406,8 @@ export const VehicleScheduleModule: React.FC<VehicleScheduleModuleProps> = ({ on
         setConflictError(null);
         setErrorMessage(null);
         setFormErrors({});
+        setIsMultiDayMode(false);
+        setMultiDates([]);
         fetchData();
 
     } catch (e: any) {
@@ -601,10 +729,11 @@ export const VehicleScheduleModule: React.FC<VehicleScheduleModuleProps> = ({ on
                         const end = formatDateTime(sch.end_time);
                         const isSameDay = start.date === end.date;
                         const isToday = new Date(sch.start_time).toDateString() === new Date().toDateString();
+                        const isConflict = hasScheduleConflict(sch);
 
                         return (
-                            <div key={sch.id} className={`bg-white rounded-lg border-l-4 shadow-sm hover:shadow-md transition-shadow p-4 flex flex-col relative group ${isToday ? 'border-[#C5A059]' : 'border-gray-300'}`}>
-                                <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
+                            <div key={sch.id} className={`bg-white rounded-lg border-l-4 shadow-sm hover:shadow-md transition-shadow p-4 flex flex-col relative group ${isConflict ? 'border-red-500 ring-2 ring-red-300' : (isToday ? 'border-[#C5A059]' : 'border-gray-300')}`}>
+                                <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1 z-10">
                                     <button 
                                         onClick={() => handleOpenEdit(sch)}
                                         className="text-blue-400 hover:text-blue-600 bg-blue-50 hover:bg-blue-100 p-1 rounded"
@@ -621,35 +750,58 @@ export const VehicleScheduleModule: React.FC<VehicleScheduleModuleProps> = ({ on
                                     </button>
                                 </div>
 
-                                <div className="flex items-center gap-2 mb-2">
-                                    <div className="bg-[#3E3223] text-[#C5A059] font-bold font-mono px-2 py-1 rounded text-sm flex items-center gap-1">
-                                        <Car size={14} /> {sch.vehicle_prefix}
+                                <div className="flex items-center justify-between mb-3">
+                                    <div className="bg-[#3E3223] text-[#C5A059] font-bold font-mono px-3 py-1.5 rounded-md text-xl flex items-center gap-2">
+                                        <Car size={20} /> {sch.vehicle_prefix}
                                     </div>
-                                    {isToday && (
-                                        <div className="text-xs font-bold text-green-600 border border-green-200 bg-green-50 px-2 py-0.5 rounded uppercase tracking-wide">
-                                            HOJE
-                                        </div>
-                                    )}
+                                    <div className="flex flex-col items-end gap-1">
+                                        {isConflict && (
+                                            <div className="text-xs font-bold text-white bg-red-600 px-2 py-0.5 rounded uppercase tracking-wide flex items-center gap-1 animate-pulse">
+                                                <AlertOctagon size={12} /> CONFLITO
+                                            </div>
+                                        )}
+                                        {isToday && !isConflict && (
+                                            <div className="text-xs font-bold text-green-600 border border-green-200 bg-green-50 px-2 py-0.5 rounded uppercase tracking-wide">
+                                                HOJE
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
 
-                                <div className="text-[#3E3223] text-lg mb-1">
+                                <div className="mb-3 pl-1">
                                     {isSameDay ? (
                                         <div className="flex flex-col">
-                                            <span className="text-xs font-bold text-gray-500 uppercase">{start.date}</span>
-                                            <span className="font-bold flex items-center gap-1 text-[#C5A059]">
-                                                <Clock size={16} /> {start.time} às {end.time}
-                                            </span>
+                                            {/* DATA EM DESTAQUE (Cor mantida, tamanho reduzido) */}
+                                            <div className="flex items-center gap-2 text-[#C5A059] font-bold text-sm">
+                                                <Calendar size={16} />
+                                                <span>{start.date}</span>
+                                            </div>
+                                            {/* HORA SECUNDÁRIA */}
+                                            <div className="flex items-center gap-1 text-gray-600 font-semibold text-sm mt-1">
+                                                <Clock size={16} />
+                                                <span>{start.time} às {end.time}</span>
+                                            </div>
                                         </div>
                                     ) : (
-                                        <div className="flex flex-col gap-1">
-                                            <div className="flex items-center gap-2 text-sm font-bold text-gray-700">
-                                                <span>{start.date} {start.time}</span>
+                                        /* LÓGICA VERTICAL PARA MÚLTIPLOS DIAS */
+                                        <div className="flex flex-col gap-0.5">
+                                            {/* INÍCIO */}
+                                            <div className="flex items-center gap-2">
+                                                <Calendar size={16} className="text-[#C5A059]" />
+                                                <span className="text-[#C5A059] font-bold text-sm">{start.date}</span>
+                                                <span className="text-gray-600 font-semibold text-sm">{start.time}</span>
                                             </div>
-                                            <div className="flex items-center gap-1 text-gray-400 text-xs">
-                                                <ArrowRight size={12} /> Até
+                                            
+                                            {/* CONECTOR */}
+                                            <div className="pl-7 text-xs text-gray-400 font-medium">
+                                                até
                                             </div>
-                                            <div className="flex items-center gap-2 text-sm font-bold text-gray-700">
-                                                <span>{end.date} {end.time}</span>
+
+                                            {/* FIM */}
+                                            <div className="flex items-center gap-2">
+                                                <Calendar size={16} className="text-[#C5A059]" />
+                                                <span className="text-[#C5A059] font-bold text-sm">{end.date}</span>
+                                                <span className="text-gray-600 font-semibold text-sm">{end.time}</span>
                                             </div>
                                         </div>
                                     )}
@@ -680,9 +832,25 @@ export const VehicleScheduleModule: React.FC<VehicleScheduleModuleProps> = ({ on
             <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 overflow-y-auto">
                 <div className="bg-white rounded-lg shadow-2xl w-full max-w-lg border-t-8 border-[#C5A059] my-8 animate-fade-in">
                     <div className="p-6">
-                        <h2 className="text-2xl font-bold text-[#3E3223] mb-6 flex items-center gap-2">
-                            <CalendarClock /> {editingScheduleId ? 'Editar Agendamento' : 'Novo Agendamento'}
-                        </h2>
+                        <div className="flex justify-between items-start mb-6">
+                            <h2 className="text-2xl font-bold text-[#3E3223] flex items-center gap-2">
+                                <CalendarClock /> {editingScheduleId ? 'Editar Agendamento' : 'Novo Agendamento'}
+                            </h2>
+                            {!editingScheduleId && (
+                                <button 
+                                    onClick={() => { setIsMultiDayMode(!isMultiDayMode); setConflictError(null); setErrorMessage(null); }}
+                                    className={`text-xs px-3 py-2 rounded-lg flex items-center gap-2 font-bold shadow-md transition-all transform hover:scale-105 ${
+                                        isMultiDayMode 
+                                        ? 'bg-indigo-600 hover:bg-indigo-700 text-white ring-2 ring-indigo-300' 
+                                        : 'bg-indigo-500 hover:bg-indigo-600 text-white'
+                                    }`}
+                                    title={isMultiDayMode ? "Voltar para agendamento único" : "Alternar para múltiplos dias"}
+                                >
+                                    {isMultiDayMode ? <Layers size={16} /> : <CalendarPlus size={16} />}
+                                    {isMultiDayMode ? "MODO LOTE ATIVO" : "AGENDAR VÁRIOS DIAS"}
+                                </button>
+                            )}
+                        </div>
 
                         {/* MENSAGEM DE ERRO GERAL (Validação ou Conflito) */}
                         {errorMessage && (
@@ -731,55 +899,121 @@ export const VehicleScheduleModule: React.FC<VehicleScheduleModuleProps> = ({ on
                                 </div>
                             </div>
 
-                            {/* Data e Hora Início */}
-                            <div className={`bg-gray-50 p-3 rounded border ${formErrors.start_date || formErrors.start_hour ? 'border-red-300 bg-red-50' : 'border-gray-200'}`}>
-                                <span className={`text-xs font-bold uppercase block mb-2 ${formErrors.start_date || formErrors.start_hour ? 'text-red-600' : 'text-gray-500'}`}>Saída (Início)</span>
-                                <div className="grid grid-cols-2 gap-2">
-                                    <div>
-                                        <label className="block text-xs font-bold text-gray-700 mb-1">Data <span className="text-red-500">*</span></label>
+                            {/* MODO MÚLTIPLOS DIAS (SELEÇÃO DE DATAS) */}
+                            {isMultiDayMode ? (
+                                <div className="bg-[#fcfae6] p-4 rounded border border-yellow-200 shadow-sm animate-fade-in">
+                                    <div className="flex items-center gap-2 mb-2 text-yellow-800 font-bold text-sm">
+                                        <Layers size={16} /> Agendamento em Lote
+                                    </div>
+                                    <p className="text-xs text-gray-600 mb-3">
+                                        Adicione os dias desejados. O horário será repetido para cada data.
+                                    </p>
+                                    
+                                    <div className="flex gap-2 mb-3">
                                         <input 
                                             type="date"
-                                            className={getInputClass('start_date')}
-                                            value={formData.start_date}
-                                            onChange={e => setFormData({...formData, start_date: e.target.value})}
+                                            className="border p-2 rounded w-full"
+                                            value={dateToAdd}
+                                            onChange={(e) => setDateToAdd(e.target.value)}
                                         />
+                                        <button 
+                                            onClick={addDateToList}
+                                            className="bg-[#C5A059] text-white px-3 rounded hover:bg-[#b08d4a] font-bold"
+                                        >
+                                            Adicionar
+                                        </button>
                                     </div>
-                                    <div>
-                                        <label className="block text-xs font-bold text-gray-700 mb-1">Hora <span className="text-red-500">*</span></label>
-                                        <input 
-                                            type="time"
-                                            className={getInputClass('start_hour')}
-                                            value={formData.start_hour}
-                                            onChange={e => setFormData({...formData, start_hour: e.target.value})}
-                                        />
-                                    </div>
-                                </div>
-                            </div>
 
-                            {/* Data e Hora Término */}
-                            <div className={`bg-gray-50 p-3 rounded border ${formErrors.end_date || formErrors.end_hour ? 'border-red-300 bg-red-50' : 'border-gray-200'}`}>
-                                <span className={`text-xs font-bold uppercase block mb-2 ${formErrors.end_date || formErrors.end_hour ? 'text-red-600' : 'text-gray-500'}`}>Chegada (Término Previsto)</span>
-                                <div className="grid grid-cols-2 gap-2">
-                                    <div>
-                                        <label className="block text-xs font-bold text-gray-700 mb-1">Data <span className="text-red-500">*</span></label>
-                                        <input 
-                                            type="date"
-                                            className={getInputClass('end_date')}
-                                            value={formData.end_date}
-                                            onChange={e => setFormData({...formData, end_date: e.target.value})}
-                                        />
+                                    {multiDates.length > 0 && (
+                                        <div className="flex flex-wrap gap-2">
+                                            {multiDates.map(date => (
+                                                <div key={date} className="bg-white border border-gray-300 rounded-full px-3 py-1 text-sm flex items-center gap-2 shadow-sm">
+                                                    <span className="font-mono font-bold text-gray-700">{new Date(date).toLocaleDateString('pt-BR', { timeZone: 'UTC' })}</span>
+                                                    <button onClick={() => removeDateFromList(date)} className="text-red-500 hover:text-red-700"><MinusCircle size={14} /></button>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+
+                                    {/* HORÁRIO UNIFICADO */}
+                                    <div className="mt-4 grid grid-cols-2 gap-2">
+                                        <div>
+                                            <label className="block text-xs font-bold text-gray-700 mb-1">Horário Início <span className="text-red-500">*</span></label>
+                                            <input 
+                                                type="time"
+                                                className={getInputClass('start_hour')}
+                                                value={formData.start_hour}
+                                                onChange={e => setFormData({...formData, start_hour: e.target.value})}
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-bold text-gray-700 mb-1">Horário Fim <span className="text-red-500">*</span></label>
+                                            <input 
+                                                type="time"
+                                                className={getInputClass('end_hour')}
+                                                value={formData.end_hour}
+                                                onChange={e => setFormData({...formData, end_hour: e.target.value})}
+                                            />
+                                        </div>
                                     </div>
-                                    <div>
-                                        <label className="block text-xs font-bold text-gray-700 mb-1">Hora <span className="text-red-500">*</span></label>
-                                        <input 
-                                            type="time"
-                                            className={getInputClass('end_hour')}
-                                            value={formData.end_hour}
-                                            onChange={e => setFormData({...formData, end_hour: e.target.value})}
-                                        />
-                                    </div>
+                                    <p className="text-[10px] text-gray-500 mt-1 italic">
+                                        * Se a hora fim for menor que a início (ex: 22:00 as 02:00), o sistema considerará o término no dia seguinte.
+                                    </p>
                                 </div>
-                            </div>
+                            ) : (
+                                /* MODO PADRÃO (ÚNICO) */
+                                <>
+                                    {/* Data e Hora Início */}
+                                    <div className={`bg-gray-50 p-3 rounded border ${formErrors.start_date || formErrors.start_hour ? 'border-red-300 bg-red-50' : 'border-gray-200'}`}>
+                                        <span className={`text-xs font-bold uppercase block mb-2 ${formErrors.start_date || formErrors.start_hour ? 'text-red-600' : 'text-gray-500'}`}>Saída (Início)</span>
+                                        <div className="grid grid-cols-2 gap-2">
+                                            <div>
+                                                <label className="block text-xs font-bold text-gray-700 mb-1">Data <span className="text-red-500">*</span></label>
+                                                <input 
+                                                    type="date"
+                                                    className={getInputClass('start_date')}
+                                                    value={formData.start_date}
+                                                    onChange={e => setFormData({...formData, start_date: e.target.value})}
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-xs font-bold text-gray-700 mb-1">Hora <span className="text-red-500">*</span></label>
+                                                <input 
+                                                    type="time"
+                                                    className={getInputClass('start_hour')}
+                                                    value={formData.start_hour}
+                                                    onChange={e => setFormData({...formData, start_hour: e.target.value})}
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Data e Hora Término */}
+                                    <div className={`bg-gray-50 p-3 rounded border ${formErrors.end_date || formErrors.end_hour ? 'border-red-300 bg-red-50' : 'border-gray-200'}`}>
+                                        <span className={`text-xs font-bold uppercase block mb-2 ${formErrors.end_date || formErrors.end_hour ? 'text-red-600' : 'text-gray-500'}`}>Chegada (Término Previsto)</span>
+                                        <div className="grid grid-cols-2 gap-2">
+                                            <div>
+                                                <label className="block text-xs font-bold text-gray-700 mb-1">Data <span className="text-red-500">*</span></label>
+                                                <input 
+                                                    type="date"
+                                                    className={getInputClass('end_date')}
+                                                    value={formData.end_date}
+                                                    onChange={e => setFormData({...formData, end_date: e.target.value})}
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-xs font-bold text-gray-700 mb-1">Hora <span className="text-red-500">*</span></label>
+                                                <input 
+                                                    type="time"
+                                                    className={getInputClass('end_hour')}
+                                                    value={formData.end_hour}
+                                                    onChange={e => setFormData({...formData, end_hour: e.target.value})}
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+                                </>
+                            )}
 
                             {/* Motorista e Motivo */}
                             <div>
@@ -823,16 +1057,16 @@ export const VehicleScheduleModule: React.FC<VehicleScheduleModuleProps> = ({ on
 
                         <div className="flex justify-end gap-3 mt-8 border-t pt-4">
                             <button 
-                                onClick={() => { setIsModalOpen(false); setEditingScheduleId(null); setFormData(initialForm); setConflictError(null); setErrorMessage(null); setFormErrors({}); }}
+                                onClick={() => { setIsModalOpen(false); setEditingScheduleId(null); setFormData(initialForm); setConflictError(null); setErrorMessage(null); setFormErrors({}); setIsMultiDayMode(false); setMultiDates([]); }}
                                 className="px-6 py-2 text-gray-600 hover:bg-gray-100 rounded border font-medium"
                             >
                                 Cancelar
                             </button>
                             <button 
-                                onClick={handleSaveSchedule}
+                                onClick={() => handleSaveSchedule(false)}
                                 className="px-6 py-2 bg-[#3E3223] text-white rounded hover:bg-[#2a2218] shadow-md font-bold transition-colors"
                             >
-                                {editingScheduleId ? 'Salvar Alterações' : 'Agendar'}
+                                {editingScheduleId ? 'Salvar Alterações' : (isMultiDayMode ? 'Agendar Todos' : 'Agendar')}
                             </button>
                         </div>
                     </div>
