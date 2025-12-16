@@ -253,7 +253,7 @@ export const VehicleScheduleModule: React.FC<VehicleScheduleModuleProps> = ({ on
         const payload = {
             vehicle_prefix: formData.vehicle_prefix,
             driver_name: formData.driver_name.toUpperCase(),
-            reason: formData.reason,
+            reason: formData.reason.toUpperCase(),
             start_time: startDateTime.toISOString(),
             end_time: endDateTime.toISOString(),
             observations: formData.observations
@@ -796,10 +796,10 @@ export const VehicleScheduleModule: React.FC<VehicleScheduleModuleProps> = ({ on
                             <div>
                                 <label className="block text-sm font-bold text-gray-700 mb-1">Motivo do Empréstimo <span className="text-red-500">*</span></label>
                                 <input 
-                                    className={getInputClass('reason')}
+                                    className={getInputClass('reason') + " uppercase"}
                                     placeholder="Ex: Apoio a evento, Manutenção, Missão..."
                                     value={formData.reason}
-                                    onChange={e => setFormData({...formData, reason: e.target.value})}
+                                    onChange={e => setFormData({...formData, reason: e.target.value.toUpperCase()})}
                                 />
                             </div>
 
