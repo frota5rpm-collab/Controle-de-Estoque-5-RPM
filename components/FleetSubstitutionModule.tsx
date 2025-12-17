@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Home, Plus, Search, Edit, Trash2, LogOut, RefreshCw, Car, ArrowRight, AlertCircle, CheckCircle, XCircle, BarChart3, Clock, Check, FileUp, FileDown, MapPin, Building2, Calendar, FileText, ArrowUpDown, ArrowUp, ArrowDown, Info, Filter, Square, CheckSquare } from 'lucide-react';
 import { supabase } from '../lib/supabase';
@@ -11,7 +12,6 @@ interface FleetSubstitutionModuleProps {
   onLogout: () => void;
 }
 
-// Fixed SortKey type to include missing keys for indicated vehicles
 type SortKey = 'received_prefix' | 'received_plate' | 'received_model' | 'received_bgpm' | 'received_city' | 'received_unit' | 'created_at' | 'indicated_prefix' | 'indicated_plate';
 
 export const FleetSubstitutionModule: React.FC<FleetSubstitutionModuleProps> = ({ onBack, userEmail, onLogout }) => {
@@ -202,6 +202,26 @@ export const FleetSubstitutionModule: React.FC<FleetSubstitutionModuleProps> = (
         return matchesSearch && matchesCity && matchesUnit && matchesStatus;
     })
     .sort((a, b) => {
+        // Ordenação Especial para BGPM (Número/Ano)
+        if (sortConfig.key === 'received_bgpm') {
+            const parseBgpm = (val: string | null) => {
+                if (!val || !val.includes('/')) return { num: 0, year: 0 };
+                const [n, y] = val.split('/').map(s => parseInt(s.trim(), 10) || 0);
+                return { num: n, year: y };
+            };
+            const aData = parseBgpm(a.received_bgpm);
+            const bData = parseBgpm(b.received_bgpm);
+
+            if (aData.year !== bData.year) {
+                return sortConfig.direction === 'ASC' 
+                    ? aData.year - bData.year 
+                    : bData.year - aData.year;
+            }
+            return sortConfig.direction === 'ASC' 
+                ? aData.num - bData.num 
+                : bData.num - aData.num;
+        }
+
         let valA: any = a[sortConfig.key];
         let valB: any = b[sortConfig.key];
         if (typeof valA === 'string') valA = valA.toLowerCase();
@@ -223,7 +243,7 @@ export const FleetSubstitutionModule: React.FC<FleetSubstitutionModuleProps> = (
              <img src={shieldUrl} alt="Escudo" className="h-28 drop-shadow-xl" style={{ height: '7rem' }} />
           </div>
           <div className="text-right">
-             <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight text-[#C5A059] font-serif uppercase">Substituição de Frota</h1>
+             <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight text-[#C5A059] font-serif uppercase">Substituição da Frota</h1>
              <p className="text-lg font-bold text-[#C5A059] opacity-90 tracking-widest font-serif">FROTA 5ª RPM</p>
              <div className="text-right mt-1">
                  <span className="text-sm font-semibold text-white/90">Bem-vindo, {userEmail}</span>

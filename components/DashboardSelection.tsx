@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { Package, Shield, LogOut, KeyRound, CalendarClock, RefreshCw } from 'lucide-react';
 
@@ -47,7 +48,6 @@ export const DashboardSelection: React.FC<DashboardSelectionProps> = ({
           <h1 className="text-3xl md:text-4xl font-extrabold text-white drop-shadow-md font-serif mb-2">
             Sistema de Gestão Frota 5ª RPM
           </h1>
-          {/* Mensagem simples sem fundo/botão */}
           <p className="text-white/90 text-lg font-medium">
             Bem-vindo, {userEmail}
           </p>
@@ -56,7 +56,7 @@ export const DashboardSelection: React.FC<DashboardSelectionProps> = ({
         {/* Grid de Opções */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           
-          {/* Cartão 1: Estoque & Frota */}
+          {/* Cartão 1: Controle de Estoque */}
           <button 
             onClick={() => onSelectModule('STOCK')}
             className="group bg-[#fdfbf7] p-6 rounded-xl shadow-2xl border-t-8 border-[#3E3223] hover:scale-[1.02] transition-all duration-300 flex flex-col items-center text-center cursor-pointer"
@@ -65,10 +65,10 @@ export const DashboardSelection: React.FC<DashboardSelectionProps> = ({
               <Package size={40} className="text-[#3E3223]" />
             </div>
             <h2 className="text-xl font-bold text-[#3E3223] mb-3 group-hover:text-[#C5A059] transition-colors">
-              Estoque & Mapa Carga
+              Controle de Estoque
             </h2>
             <p className="text-gray-500 text-xs">
-                Gerencie materiais, frota orgânica e histórico.
+                Controle de estoque e movimentação de materiais.
             </p>
           </button>
 
@@ -84,11 +84,11 @@ export const DashboardSelection: React.FC<DashboardSelectionProps> = ({
               Agenda de Viatura
             </h2>
             <p className="text-gray-500 text-xs">
-                Agendamento de veículos e controle de conflitos.
+                Agendamento/empréstimo de viaturas.
             </p>
           </button>
 
-          {/* Cartão 3: Substituição de Frota (NOVO) */}
+          {/* Cartão 3: Substituição da Frota */}
           <button 
             onClick={() => onSelectModule('SUBSTITUTION')}
             className="group bg-[#fdfbf7] p-6 rounded-xl shadow-2xl border-t-8 border-[#556B2F] hover:scale-[1.02] transition-all duration-300 flex flex-col items-center text-center cursor-pointer"
@@ -97,14 +97,14 @@ export const DashboardSelection: React.FC<DashboardSelectionProps> = ({
               <RefreshCw size={40} className="text-[#556B2F]" />
             </div>
             <h2 className="text-xl font-bold text-[#3E3223] mb-3 group-hover:text-[#556B2F] transition-colors">
-              Substituição de Frota
+              Substituição da Frota
             </h2>
             <p className="text-gray-500 text-xs">
-                Controle de viaturas recebidas e indicadas para troca.
+                Controle de viaturas (placa) indicadas para recebimento de novas viaturas.
             </p>
           </button>
 
-          {/* Cartão 4: PAV */}
+          {/* Cartão 4: Controle de PAV */}
           <button 
             onClick={() => onSelectModule('PAV')}
             className="group bg-[#fdfbf7] p-6 rounded-xl shadow-2xl border-t-8 border-[#3E3223] hover:scale-[1.02] transition-all duration-300 flex flex-col items-center text-center cursor-pointer"
@@ -116,7 +116,7 @@ export const DashboardSelection: React.FC<DashboardSelectionProps> = ({
               Controle de PAV
             </h2>
             <p className="text-gray-500 text-xs">
-                Gestão de processos administrativos e sinistros.
+                Controle de PAV de viaturas locadas.
             </p>
           </button>
 
