@@ -16,6 +16,7 @@ export const DashboardSelection: React.FC<DashboardSelectionProps> = ({
   onChangePassword
 }) => {
   const shieldUrl = "https://yaoebstgiagmrvlbozny.supabase.co/storage/v1/object/sign/Logo%20PMMG/ESCUDO%20PMMG.png?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV9mMjgyNzE5YS0xNjI0LTRiYTUtODk3MC1jNTc3ZDIzMTQ4YjUiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJMb2dvIFBNTUcvRVNDVURPIFBNTUcucG5nIiwiaWF0IjoxNzY1NDAzMzE0LCJleHAiOjIzOTYxMjMzMTR9.1uAuyEEDpwU_vmvKjnSJw0uYbcOIkB-vRpXRDU-Arss";
+  const currentYear = new Date().getFullYear();
 
   return (
     <div className="min-h-screen bg-[#958458] flex flex-col items-center justify-center p-4 font-sans relative">
@@ -123,7 +124,7 @@ export const DashboardSelection: React.FC<DashboardSelectionProps> = ({
         </div>
         
         <div className="mt-8 text-center text-white/40 text-xs">
-            © 2024 Polícia Militar de Minas Gerais - 5ª RPM
+            © {currentYear} Polícia Militar de Minas Gerais - 5ª RPM
         </div>
 
       </div>
