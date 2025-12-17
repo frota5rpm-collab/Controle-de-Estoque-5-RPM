@@ -10,7 +10,7 @@ export const DatabaseSetup: React.FC<DatabaseSetupProps> = ({ onBack }) => {
 
   const sql = `
 -- =========================================================
--- SCRIPT ATUALIZADO (TABELAS + DADOS DE TESTE) v5
+-- SCRIPT ATUALIZADO (TABELAS + DADOS DE TESTE) v6
 -- Execute este script no SQL Editor do Supabase para corrigir a tabela
 -- =========================================================
 
@@ -95,7 +95,7 @@ END;
 $$;
 
 
--- 5. TABELAS DO SISTEMA (ESTOQUE, FROTA, PAV E AGENDA)
+-- 5. TABELAS DO SISTEMA (ESTOQUE, FROTA, PAV, AGENDA, SUBSTITUIÇÃO)
 
 -- Materiais
 CREATE TABLE IF NOT EXISTS public.materials (
@@ -106,7 +106,6 @@ CREATE TABLE IF NOT EXISTS public.materials (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
--- ATUALIZAÇÃO v5: Adicionar coluna de compatibilidade se não existir
 ALTER TABLE public.materials ADD COLUMN IF NOT EXISTS compatible_vehicles TEXT;
 
 -- Viaturas
@@ -150,7 +149,7 @@ CREATE TABLE IF NOT EXISTS public.pav_processes (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
--- Agenda de Viaturas (NOVO)
+-- Agenda de Viaturas
 CREATE TABLE IF NOT EXISTS public.vehicle_schedules (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     vehicle_prefix TEXT NOT NULL,
@@ -162,12 +161,25 @@ CREATE TABLE IF NOT EXISTS public.vehicle_schedules (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
+-- Substituição de Frota (NOVO)
+CREATE TABLE IF NOT EXISTS public.fleet_substitutions (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    received_prefix TEXT NOT NULL,
+    received_plate TEXT NOT NULL,
+    received_model TEXT,
+    received_bgpm TEXT,
+    indicated_prefix TEXT,
+    indicated_plate TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
 -- Permissões (RLS)
 ALTER TABLE public.materials ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.vehicles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.movements ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.pav_processes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.vehicle_schedules ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.fleet_substitutions ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "Public Access Materials" ON public.materials;
 CREATE POLICY "Public Access Materials" ON public.materials FOR ALL USING (true) WITH CHECK (true);
@@ -183,6 +195,9 @@ CREATE POLICY "Public Access PAV" ON public.pav_processes FOR ALL USING (true) W
 
 DROP POLICY IF EXISTS "Public Access Schedules" ON public.vehicle_schedules;
 CREATE POLICY "Public Access Schedules" ON public.vehicle_schedules FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Public Access Substitutions" ON public.fleet_substitutions;
+CREATE POLICY "Public Access Substitutions" ON public.fleet_substitutions FOR ALL USING (true) WITH CHECK (true);
 
 -- Trigger de Estoque
 CREATE OR REPLACE FUNCTION handle_inventory_update() RETURNS TRIGGER AS $$

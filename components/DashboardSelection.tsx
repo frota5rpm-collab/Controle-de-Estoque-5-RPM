@@ -1,8 +1,8 @@
 import React from 'react';
-import { Package, Shield, LogOut, KeyRound, CalendarClock } from 'lucide-react';
+import { Package, Shield, LogOut, KeyRound, CalendarClock, RefreshCw } from 'lucide-react';
 
 interface DashboardSelectionProps {
-  onSelectModule: (module: 'STOCK' | 'PAV' | 'SCHEDULE') => void;
+  onSelectModule: (module: 'STOCK' | 'PAV' | 'SCHEDULE' | 'SUBSTITUTION') => void;
   userEmail: string;
   onLogout: () => void;
   onChangePassword: () => void;
@@ -54,53 +54,69 @@ export const DashboardSelection: React.FC<DashboardSelectionProps> = ({
         </div>
 
         {/* Grid de Opções */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           
           {/* Cartão 1: Estoque & Frota */}
           <button 
             onClick={() => onSelectModule('STOCK')}
-            className="group bg-[#fdfbf7] p-8 rounded-xl shadow-2xl border-t-8 border-[#3E3223] hover:scale-[1.02] transition-all duration-300 flex flex-col items-center text-center cursor-pointer"
+            className="group bg-[#fdfbf7] p-6 rounded-xl shadow-2xl border-t-8 border-[#3E3223] hover:scale-[1.02] transition-all duration-300 flex flex-col items-center text-center cursor-pointer"
           >
             <div className="bg-[#3E3223]/10 p-6 rounded-full mb-6 group-hover:bg-[#3E3223]/20 transition-colors">
-              <Package size={48} className="text-[#3E3223]" />
+              <Package size={40} className="text-[#3E3223]" />
             </div>
-            <h2 className="text-2xl font-bold text-[#3E3223] mb-3 group-hover:text-[#C5A059] transition-colors">
-              Controle de Estoque
+            <h2 className="text-xl font-bold text-[#3E3223] mb-3 group-hover:text-[#C5A059] transition-colors">
+              Estoque & Mapa Carga
             </h2>
-            <p className="text-gray-500 text-sm">
-                Gerencie materiais, mapa carga de viaturas e histórico de movimentações.
+            <p className="text-gray-500 text-xs">
+                Gerencie materiais, frota orgânica e histórico.
             </p>
           </button>
 
           {/* Cartão 2: Agenda de Viatura */}
           <button 
             onClick={() => onSelectModule('SCHEDULE')}
-            className="group bg-[#fdfbf7] p-8 rounded-xl shadow-2xl border-t-8 border-[#C5A059] hover:scale-[1.02] transition-all duration-300 flex flex-col items-center text-center cursor-pointer"
+            className="group bg-[#fdfbf7] p-6 rounded-xl shadow-2xl border-t-8 border-[#C5A059] hover:scale-[1.02] transition-all duration-300 flex flex-col items-center text-center cursor-pointer"
           >
             <div className="bg-[#C5A059]/10 p-6 rounded-full mb-6 group-hover:bg-[#C5A059]/20 transition-colors">
-              <CalendarClock size={48} className="text-[#C5A059]" />
+              <CalendarClock size={40} className="text-[#C5A059]" />
             </div>
-            <h2 className="text-2xl font-bold text-[#3E3223] mb-3 group-hover:text-[#C5A059] transition-colors">
+            <h2 className="text-xl font-bold text-[#3E3223] mb-3 group-hover:text-[#C5A059] transition-colors">
               Agenda de Viatura
             </h2>
-            <p className="text-gray-500 text-sm">
-                Agendamento de veículos com controle automático de conflitos de horário.
+            <p className="text-gray-500 text-xs">
+                Agendamento de veículos e controle de conflitos.
             </p>
           </button>
 
-          {/* Cartão 3: PAV */}
+          {/* Cartão 3: Substituição de Frota (NOVO) */}
+          <button 
+            onClick={() => onSelectModule('SUBSTITUTION')}
+            className="group bg-[#fdfbf7] p-6 rounded-xl shadow-2xl border-t-8 border-[#556B2F] hover:scale-[1.02] transition-all duration-300 flex flex-col items-center text-center cursor-pointer"
+          >
+            <div className="bg-[#556B2F]/10 p-6 rounded-full mb-6 group-hover:bg-[#556B2F]/20 transition-colors">
+              <RefreshCw size={40} className="text-[#556B2F]" />
+            </div>
+            <h2 className="text-xl font-bold text-[#3E3223] mb-3 group-hover:text-[#556B2F] transition-colors">
+              Substituição de Frota
+            </h2>
+            <p className="text-gray-500 text-xs">
+                Controle de viaturas recebidas e indicadas para troca.
+            </p>
+          </button>
+
+          {/* Cartão 4: PAV */}
           <button 
             onClick={() => onSelectModule('PAV')}
-            className="group bg-[#fdfbf7] p-8 rounded-xl shadow-2xl border-t-8 border-[#3E3223] hover:scale-[1.02] transition-all duration-300 flex flex-col items-center text-center cursor-pointer"
+            className="group bg-[#fdfbf7] p-6 rounded-xl shadow-2xl border-t-8 border-[#3E3223] hover:scale-[1.02] transition-all duration-300 flex flex-col items-center text-center cursor-pointer"
           >
             <div className="bg-[#3E3223]/10 p-6 rounded-full mb-6 group-hover:bg-[#3E3223]/20 transition-colors">
-              <Shield size={48} className="text-[#3E3223]" />
+              <Shield size={40} className="text-[#3E3223]" />
             </div>
-            <h2 className="text-2xl font-bold text-[#3E3223] mb-3 group-hover:text-[#C5A059] transition-colors">
+            <h2 className="text-xl font-bold text-[#3E3223] mb-3 group-hover:text-[#C5A059] transition-colors">
               Controle de PAV
             </h2>
-            <p className="text-gray-500 text-sm">
-                Gerencie processos administrativos de viaturas, prazos e envio de documentos.
+            <p className="text-gray-500 text-xs">
+                Gestão de processos administrativos e sinistros.
             </p>
           </button>
 

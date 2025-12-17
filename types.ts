@@ -63,4 +63,18 @@ export interface VehicleSchedule {
   created_at: string;
 }
 
+export interface FleetSubstitution {
+  id: string;
+  received_prefix: string;
+  received_plate: string;
+  received_model: string;
+  received_bgpm: string;
+  received_city: string;
+  received_unit: string;
+  indicated_prefix: string | null;
+  indicated_plate: string | null;
+  not_required: boolean;
+  created_at: string;
+}
+
 export type Tab = 'inventory' | 'movements' | 'fleet' | 'setup';
