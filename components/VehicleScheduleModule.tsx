@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Home, CalendarClock, Plus, Search, Trash2, LogOut, Car, User, Clock, AlertTriangle, Info, Truck, Edit, Settings, CheckSquare, Square, XCircle, Calendar, X, FileDown, FileText, ArrowRight, AlertCircle, Layers, CalendarPlus, MinusCircle, AlertOctagon } from 'lucide-react';
+import { Home, CalendarClock, Plus, Search, Trash2, LogOut, Car, User, Clock, AlertTriangle, Info, Truck, Edit, Settings, CheckSquare, Square, XCircle, Calendar, X, FileDown, FileText, ArrowRight, AlertCircle, Layers, CalendarPlus, MinusCircle, AlertOctagon, MousePointerClick, Check, Clock3 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { VehicleSchedule, Vehicle } from '../types';
 import { exportToExcel } from '../utils/excel';
@@ -37,10 +37,25 @@ export const VehicleScheduleModule: React.FC<VehicleScheduleModuleProps> = ({ on
   const [errorMessage, setErrorMessage] = useState<string | null>(null); // Erros gerais de validação
   const [formErrors, setFormErrors] = useState<Record<string, boolean>>({}); // Campos específicos com erro
 
-  // --- NOVO: ESTADOS PARA MÚLTIPLOS DIAS ---
+  // --- NOVO: ESTADOS PARA MÚLTIPLOS DIAS (CRIAÇÃO) ---
   const [isMultiDayMode, setIsMultiDayMode] = useState(false);
   const [multiDates, setMultiDates] = useState<string[]>([]);
   const [dateToAdd, setDateToAdd] = useState('');
+
+  // --- NOVO: ESTADOS PARA SELEÇÃO E EDIÇÃO EM LOTE ---
+  const [isSelectionMode, setIsSelectionMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  
+  // Modal Edição em Lote
+  const [isBatchEditOpen, setIsBatchEditOpen] = useState(false);
+  const [batchEditTab, setBatchEditTab] = useState<'VEHICLE' | 'TIME'>('VEHICLE');
+  const [batchVehiclePrefix, setBatchVehiclePrefix] = useState(''); 
+  const [batchStartHour, setBatchStartHour] = useState('');
+  const [batchEndHour, setBatchEndHour] = useState('');
+  const [ignoreBatchConflict, setIgnoreBatchConflict] = useState(false);
+
+  // Modal Exclusão em Lote
+  const [isBatchDeleteOpen, setIsBatchDeleteOpen] = useState(false);
 
   // Form Data Agendamento
   const initialForm = {
@@ -59,7 +74,7 @@ export const VehicleScheduleModule: React.FC<VehicleScheduleModuleProps> = ({ on
   const [vehicleFormData, setVehicleFormData] = useState<Partial<Vehicle>>({});
   const [isEditingVehicle, setIsEditingVehicle] = useState<Vehicle | null>(null);
 
-  // Exclusão
+  // Exclusão Individual
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
   // Fetch Data
@@ -118,38 +133,38 @@ export const VehicleScheduleModule: React.FC<VehicleScheduleModuleProps> = ({ on
 
   // --- LÓGICA DE AGENDAMENTO ---
 
-  // Verificar Conflito de Horário e retornar o agendamento conflitante
+  // Verificar Conflito de Horário
   const checkConflict = (newStart: Date, newEnd: Date, prefix: string, excludeId?: string): VehicleSchedule | null => {
-      // Filtra agendamentos da mesma viatura
       const vehicleSchedules = schedules.filter(s => s.vehicle_prefix === prefix);
 
       for (const schedule of vehicleSchedules) {
-          // Se estiver editando, ignorar o próprio agendamento atual
           if (excludeId && schedule.id === excludeId) continue;
 
           const existingStart = new Date(schedule.start_time);
           const existingEnd = new Date(schedule.end_time);
 
-          // Lógica de colisão de intervalos:
-          // (StartA < EndB) e (EndA > StartB)
           if (newStart < existingEnd && newEnd > existingStart) {
-              return schedule; // Retorna o agendamento que causou conflito
+              return schedule;
           }
       }
-      return null; // Sem conflito
+      return null; 
   };
 
   const handleOpenEdit = (schedule: VehicleSchedule) => {
+      if (isSelectionMode) {
+          toggleSelection(schedule.id);
+          return;
+      }
+
       setConflictError(null);
       setErrorMessage(null);
       setFormErrors({});
-      setIsMultiDayMode(false); // Edição é sempre modo único
+      setIsMultiDayMode(false);
       setMultiDates([]);
       
       const startDate = new Date(schedule.start_time);
       const endDate = new Date(schedule.end_time);
 
-      // Formatar para inputs (YYYY-MM-DD e HH:MM)
       const startDateStr = startDate.toISOString().split('T')[0];
       const endDateStr = endDate.toISOString().split('T')[0];
       
@@ -177,12 +192,11 @@ export const VehicleScheduleModule: React.FC<VehicleScheduleModuleProps> = ({ on
       setConflictError(null);
       setErrorMessage(null);
       setFormErrors({});
-      setIsMultiDayMode(false); // Reset para modo único padrão
+      setIsMultiDayMode(false); 
       setMultiDates([]);
       setDateToAdd('');
   };
 
-  // Helper para classes de input com erro visual
   const getInputClass = (field: keyof typeof initialForm) => {
       const baseClass = "w-full border p-2 rounded outline-none transition-colors ";
       if (formErrors[field]) {
@@ -191,14 +205,12 @@ export const VehicleScheduleModule: React.FC<VehicleScheduleModuleProps> = ({ on
       return baseClass + "focus:ring-2 focus:ring-[#C5A059]";
   };
 
-  // Funções para Multi-Datas
   const addDateToList = () => {
       if (!dateToAdd) return;
       if (multiDates.includes(dateToAdd)) {
           alert("Esta data já foi adicionada.");
           return;
       }
-      // Ordena as datas ao inserir
       const newDates = [...multiDates, dateToAdd].sort();
       setMultiDates(newDates);
       setDateToAdd('');
@@ -206,6 +218,145 @@ export const VehicleScheduleModule: React.FC<VehicleScheduleModuleProps> = ({ on
 
   const removeDateFromList = (dateToRemove: string) => {
       setMultiDates(multiDates.filter(d => d !== dateToRemove));
+  };
+
+  // --- SELEÇÃO EM LOTE ---
+  const toggleSelection = (id: string) => {
+      if (selectedIds.includes(id)) {
+          setSelectedIds(selectedIds.filter(item => item !== id));
+      } else {
+          setSelectedIds([...selectedIds, id]);
+      }
+  };
+
+  const toggleAllSelection = () => {
+      if (selectedIds.length === filteredSchedules.length) {
+          setSelectedIds([]);
+      } else {
+          setSelectedIds(filteredSchedules.map(s => s.id));
+      }
+  };
+
+  const handleBatchDelete = async () => {
+      setLoading(true);
+      try {
+          const { error } = await supabase
+              .from('vehicle_schedules')
+              .delete()
+              .in('id', selectedIds);
+          
+          if (error) throw error;
+
+          alert(`${selectedIds.length} agendamentos excluídos com sucesso.`);
+          setIsBatchDeleteOpen(false);
+          setIsSelectionMode(false);
+          setSelectedIds([]);
+          fetchData();
+      } catch (err: any) {
+          alert("Erro ao excluir em lote: " + err.message);
+      } finally {
+          setLoading(false);
+      }
+  };
+
+  const handleBatchEdit = async () => {
+      setLoading(true);
+      try {
+          if (batchEditTab === 'VEHICLE') {
+              // --- MODO 1: TROCAR VIATURA ---
+              if (!batchVehiclePrefix) {
+                  alert("Selecione a nova viatura.");
+                  setLoading(false);
+                  return;
+              }
+
+              // Validação de conflitos
+              if (!ignoreBatchConflict) {
+                  for (const id of selectedIds) {
+                      const schedule = schedules.find(s => s.id === id);
+                      if (schedule) {
+                          const conflict = checkConflict(new Date(schedule.start_time), new Date(schedule.end_time), batchVehiclePrefix, id);
+                          if (conflict) {
+                              alert(`Conflito detectado para a viatura ${batchVehiclePrefix} em ${new Date(schedule.start_time).toLocaleString('pt-BR')}. Marque "Ignorar Conflitos" se desejar forçar.`);
+                              setLoading(false);
+                              return;
+                          }
+                      }
+                  }
+              }
+
+              const { error } = await supabase
+                  .from('vehicle_schedules')
+                  .update({ vehicle_prefix: batchVehiclePrefix })
+                  .in('id', selectedIds);
+
+              if (error) throw error;
+              alert(`${selectedIds.length} agendamentos atualizados para a viatura ${batchVehiclePrefix}.`);
+
+          } else {
+              // --- MODO 2: TROCAR HORÁRIO ---
+              if (!batchStartHour || !batchEndHour) {
+                  alert("Informe o horário de início e fim.");
+                  setLoading(false);
+                  return;
+              }
+
+              for (const id of selectedIds) {
+                  const schedule = schedules.find(s => s.id === id);
+                  if (!schedule) continue;
+
+                  // Pega a data original (YYYY-MM-DD)
+                  const originalDateObj = new Date(schedule.start_time);
+                  const datePart = originalDateObj.toISOString().split('T')[0];
+
+                  const newStart = new Date(`${datePart}T${batchStartHour}:00`);
+                  let newEnd = new Date(`${datePart}T${batchEndHour}:00`);
+                  
+                  // Ajuste para virada de dia (ex: 22h as 02h)
+                  if (newEnd <= newStart) {
+                      newEnd.setDate(newEnd.getDate() + 1);
+                  }
+
+                  // Valida conflito para o NOVO horário na viatura ATUAL (ou nova se fosse combinada, mas aqui é só horário)
+                  if (!ignoreBatchConflict) {
+                      const conflict = checkConflict(newStart, newEnd, schedule.vehicle_prefix, id);
+                      if (conflict) {
+                          alert(`Conflito de horário detectado para ${schedule.vehicle_prefix} no dia ${datePart}. Marque "Ignorar Conflitos" para forçar.`);
+                          setLoading(false);
+                          return;
+                      }
+                  }
+
+                  // Update individual (pois cada um tem uma data diferente)
+                  // Nota: Supabase não suporta update em batch com valores diferentes facilmente sem RPC.
+                  // Faremos loop de updates por simplicidade e segurança.
+                  const { error } = await supabase
+                      .from('vehicle_schedules')
+                      .update({ 
+                          start_time: newStart.toISOString(),
+                          end_time: newEnd.toISOString()
+                      })
+                      .eq('id', id);
+                  
+                  if (error) throw error;
+              }
+              alert(`${selectedIds.length} agendamentos tiveram seus horários atualizados.`);
+          }
+
+          setIsBatchEditOpen(false);
+          setIsSelectionMode(false);
+          setSelectedIds([]);
+          setBatchVehiclePrefix('');
+          setBatchStartHour('');
+          setBatchEndHour('');
+          setIgnoreBatchConflict(false);
+          fetchData();
+
+      } catch (err: any) {
+          alert("Erro na atualização em lote: " + err.message);
+      } finally {
+          setLoading(false);
+      }
   };
 
   // forceSave = ignora verificações de conflito
@@ -226,7 +377,6 @@ export const VehicleScheduleModule: React.FC<VehicleScheduleModuleProps> = ({ on
         }
     });
 
-    // Validação específica por modo
     if (isMultiDayMode) {
         if (multiDates.length === 0) {
             setErrorMessage("Adicione pelo menos uma data à lista para o agendamento em lote.");
@@ -251,12 +401,10 @@ export const VehicleScheduleModule: React.FC<VehicleScheduleModuleProps> = ({ on
 
     // LÓGICA MÚLTIPLA VS ÚNICA
     if (isMultiDayMode) {
-        // Loop sobre todas as datas selecionadas
         for (const dateStr of multiDates) {
             const currentStart = new Date(`${dateStr}T${formData.start_hour}:00`);
             let currentEnd = new Date(`${dateStr}T${formData.end_hour}:00`);
 
-            // Se hora fim for menor que inicio (ex: 22h as 02h), assume dia seguinte
             if (currentEnd <= currentStart) {
                 currentEnd.setDate(currentEnd.getDate() + 1);
             }
@@ -266,7 +414,6 @@ export const VehicleScheduleModule: React.FC<VehicleScheduleModuleProps> = ({ on
                 return;
             }
 
-            // Se NÃO estiver forçando, checa conflito
             if (!forceSave) {
                 const conflict = checkConflict(currentStart, currentEnd, formData.vehicle_prefix);
                 if (conflict) {
@@ -298,7 +445,7 @@ export const VehicleScheduleModule: React.FC<VehicleScheduleModuleProps> = ({ on
                             </div>
                         </div>
                     );
-                    return; // Para tudo se achar um conflito
+                    return; 
                 }
             }
 
@@ -313,7 +460,6 @@ export const VehicleScheduleModule: React.FC<VehicleScheduleModuleProps> = ({ on
         }
 
     } else {
-        // Lógica ÚNICA (Padrão)
         const startDateTime = new Date(`${formData.start_date}T${formData.start_hour}:00`);
         const endDateTime = new Date(`${formData.end_date}T${formData.end_hour}:00`);
 
@@ -328,7 +474,6 @@ export const VehicleScheduleModule: React.FC<VehicleScheduleModuleProps> = ({ on
             return;
         }
 
-        // Se NÃO estiver forçando, checa conflito
         if (!forceSave) {
             const conflict = checkConflict(startDateTime, endDateTime, formData.vehicle_prefix, editingScheduleId || undefined);
 
@@ -378,10 +523,8 @@ export const VehicleScheduleModule: React.FC<VehicleScheduleModuleProps> = ({ on
         });
     }
 
-    // --- EXECUÇÃO DO SAVE ---
     try {
         if (editingScheduleId && !isMultiDayMode) {
-            // Update (apenas modo único)
             const { error } = await supabase
                 .from('vehicle_schedules')
                 .update(schedulesToInsert[0])
@@ -389,7 +532,6 @@ export const VehicleScheduleModule: React.FC<VehicleScheduleModuleProps> = ({ on
             if (error) throw error;
             alert("Agendamento atualizado com sucesso!");
         } else {
-            // Insert (Único ou Múltiplo)
             const { error } = await supabase.from('vehicle_schedules').insert(schedulesToInsert);
             if (error) throw error;
             
@@ -474,7 +616,6 @@ export const VehicleScheduleModule: React.FC<VehicleScheduleModuleProps> = ({ on
           const { error } = await supabase.from('vehicles').delete().eq('id', id);
           if (error) throw error;
           
-          // Recarregar viaturas
           const { data: vData } = await supabase.from('vehicles').select('*').order('prefix');
           if (vData) setVehicles(vData);
       } catch (e: any) {
@@ -483,7 +624,7 @@ export const VehicleScheduleModule: React.FC<VehicleScheduleModuleProps> = ({ on
   };
 
   // --- EXPORTAÇÃO ---
-
+  // (Mantido igual)
   const handleExportExcel = () => {
       const dataToExport = filteredSchedules.map(s => {
           const start = new Date(s.start_time);
@@ -502,20 +643,15 @@ export const VehicleScheduleModule: React.FC<VehicleScheduleModuleProps> = ({ on
 
   const handleExportPDF = () => {
       const doc = new jsPDF();
-      
-      // Cabeçalho
       doc.setFontSize(16);
-      doc.setTextColor(62, 50, 35); // Cor PMMG Primary
+      doc.setTextColor(62, 50, 35);
       doc.text("Agenda de Viaturas - 5ª RPM", 14, 20);
-      
       doc.setFontSize(10);
       doc.setTextColor(100);
       doc.text(`Gerado em: ${new Date().toLocaleString('pt-BR')}`, 14, 26);
       if (filterDate) {
           doc.text(`Filtro de Data: ${new Date(filterDate + 'T00:00:00').toLocaleDateString('pt-BR')}`, 14, 31);
       }
-
-      // Tabela
       const tableData = filteredSchedules.map(s => {
         const start = new Date(s.start_time);
         const end = new Date(s.end_time);
@@ -527,20 +663,17 @@ export const VehicleScheduleModule: React.FC<VehicleScheduleModuleProps> = ({ on
             s.reason
         ];
       });
-
       autoTable(doc, {
           startY: 35,
           head: [['Viatura', 'Motorista', 'Início', 'Término', 'Motivo']],
           body: tableData,
-          headStyles: { fillColor: [62, 50, 35], textColor: 255 }, // #3E3223
-          alternateRowStyles: { fillColor: [253, 251, 247] }, // #fdfbf7
+          headStyles: { fillColor: [62, 50, 35], textColor: 255 }, 
+          alternateRowStyles: { fillColor: [253, 251, 247] }, 
           styles: { fontSize: 8 },
       });
-
       doc.save("Agenda_Viaturas_5RPM.pdf");
   };
 
-  // Formatação para exibição
   const formatDateTime = (isoString: string) => {
       const date = new Date(isoString);
       return {
@@ -550,29 +683,21 @@ export const VehicleScheduleModule: React.FC<VehicleScheduleModuleProps> = ({ on
       };
   };
 
-  // Filtragem Principal
   const filteredSchedules = schedules.filter(s => {
-      // 1. Busca por Texto
       const matchesSearch = 
         s.vehicle_prefix.includes(search) || 
         s.driver_name.toLowerCase().includes(search.toLowerCase()) ||
         s.reason.toLowerCase().includes(search.toLowerCase());
       
-      // 2. Filtro Apenas Futuros
       const matchesFuture = showFutureOnly 
         ? new Date(s.end_time) > new Date() 
         : true;
 
-      // 3. Filtro por Data Específica (Calendário)
-      // Se tiver data selecionada, verifica se o agendamento ocorre naquele dia (interseção)
       const matchesDate = filterDate ? (() => {
           const selectedStart = new Date(`${filterDate}T00:00:00`);
           const selectedEnd = new Date(`${filterDate}T23:59:59`);
           const scheduleStart = new Date(s.start_time);
           const scheduleEnd = new Date(s.end_time);
-
-          // Verifica se há sobreposição de intervalos
-          // (InicioAgendamento <= FimDiaSelecionado) E (FimAgendamento >= InicioDiaSelecionado)
           return scheduleStart <= selectedEnd && scheduleEnd >= selectedStart;
       })() : true;
 
@@ -617,16 +742,12 @@ export const VehicleScheduleModule: React.FC<VehicleScheduleModuleProps> = ({ on
         </div>
       </header>
 
-      <main className="container mx-auto px-4 py-8 flex-grow">
+      <main className="container mx-auto px-4 py-8 flex-grow pb-24">
         <div className="bg-[#fdfbf7] rounded-xl shadow-2xl border border-[#d4c5a3] p-6 min-h-[600px]">
             
             {/* Barra de Ações e Filtros */}
             <div className="flex flex-col xl:flex-row justify-between items-center gap-4 mb-6">
-                
-                {/* Grupo de Pesquisa e Filtros */}
                 <div className="flex flex-col md:flex-row gap-3 w-full xl:w-auto flex-1">
-                    
-                    {/* Campo de Busca Texto */}
                     <div className="relative w-full md:w-80">
                         <Search className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" />
                         <input 
@@ -638,7 +759,6 @@ export const VehicleScheduleModule: React.FC<VehicleScheduleModuleProps> = ({ on
                         />
                     </div>
 
-                    {/* Filtro de Data (Calendário) */}
                     <div className="relative w-full md:w-auto flex items-center">
                         <div className="relative w-full">
                             <Calendar className="absolute left-3 top-2.5 h-5 w-5 text-gray-400 pointer-events-none" />
@@ -647,13 +767,11 @@ export const VehicleScheduleModule: React.FC<VehicleScheduleModuleProps> = ({ on
                                 className="w-full md:w-48 pl-10 pr-8 py-2 border rounded-md focus:ring-2 focus:ring-[#C5A059] outline-none text-gray-700"
                                 value={filterDate}
                                 onChange={(e) => setFilterDate(e.target.value)}
-                                title="Filtrar por data específica"
                             />
                             {filterDate && (
                                 <button 
                                     onClick={() => setFilterDate('')}
                                     className="absolute right-2 top-2.5 text-gray-400 hover:text-red-500"
-                                    title="Limpar filtro de data"
                                 >
                                     <X size={16} />
                                 </button>
@@ -661,7 +779,6 @@ export const VehicleScheduleModule: React.FC<VehicleScheduleModuleProps> = ({ on
                         </div>
                     </div>
 
-                    {/* Toggle Apenas Futuros */}
                     <button
                         onClick={() => setShowFutureOnly(!showFutureOnly)}
                         className={`flex items-center gap-2 px-4 py-2 rounded font-bold border transition-colors whitespace-nowrap ${
@@ -669,19 +786,28 @@ export const VehicleScheduleModule: React.FC<VehicleScheduleModuleProps> = ({ on
                             ? 'bg-blue-600 text-white border-blue-700' 
                             : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'
                         }`}
-                        title={showFutureOnly ? "Exibindo apenas agendamentos futuros" : "Exibindo histórico completo"}
                     >
                         {showFutureOnly ? <CheckSquare size={18} /> : <Square size={18} />}
-                        {showFutureOnly ? "Apenas Agendas Futuras" : "Filtrar Agendas Futuras"}
+                        {showFutureOnly ? "Futuros" : "Todos"}
+                    </button>
+                    
+                    <button
+                        onClick={() => { setIsSelectionMode(!isSelectionMode); setSelectedIds([]); }}
+                        className={`flex items-center gap-2 px-4 py-2 rounded font-bold border transition-colors whitespace-nowrap ${
+                            isSelectionMode 
+                            ? 'bg-orange-500 text-white border-orange-600 ring-2 ring-orange-300' 
+                            : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'
+                        }`}
+                    >
+                        <MousePointerClick size={18} />
+                        {isSelectionMode ? "Cancelar Seleção" : "Selecionar Vários"}
                     </button>
                 </div>
 
-                {/* Botões de Ação (Direita) */}
                 <div className="flex gap-2 w-full xl:w-auto justify-end flex-wrap">
                     <button 
                         onClick={handleExportExcel}
                         className="flex items-center gap-2 px-3 py-2 bg-green-600 text-white rounded hover:bg-green-700 transition-colors shadow-sm whitespace-nowrap"
-                        title="Exportar Excel"
                     >
                         <FileDown size={18} /> 
                         <span className="hidden sm:inline">Excel</span>
@@ -689,18 +815,14 @@ export const VehicleScheduleModule: React.FC<VehicleScheduleModuleProps> = ({ on
                     <button 
                         onClick={handleExportPDF}
                         className="flex items-center gap-2 px-3 py-2 bg-red-600 text-white rounded hover:bg-red-700 transition-colors shadow-sm whitespace-nowrap"
-                        title="Exportar PDF"
                     >
                         <FileText size={18} /> 
                         <span className="hidden sm:inline">PDF</span>
                     </button>
-
                     <div className="w-px bg-gray-300 mx-1 hidden xl:block"></div>
-
                     <button 
                         onClick={() => { setIsFleetManagerOpen(true); setIsEditingVehicle(null); setVehicleFormData({}); }}
                         className="flex items-center gap-2 px-4 py-2 bg-gray-600 text-white font-bold rounded hover:bg-gray-700 transition-colors shadow-sm whitespace-nowrap"
-                        title="Gerenciar Frota"
                     >
                         <Settings size={20} /> <span className="hidden sm:inline">Frota</span>
                     </button>
@@ -720,8 +842,7 @@ export const VehicleScheduleModule: React.FC<VehicleScheduleModuleProps> = ({ on
                 ) : filteredSchedules.length === 0 ? (
                     <div className="col-span-full text-center py-10 text-gray-500 border-2 border-dashed border-gray-300 rounded-lg flex flex-col items-center justify-center gap-2">
                         <CalendarClock size={48} className="text-gray-300" />
-                        <p>Nenhum agendamento encontrado com os filtros atuais.</p>
-                        {filterDate && <p className="text-sm text-blue-600">Filtro ativo: {new Date(filterDate + 'T00:00:00').toLocaleDateString('pt-BR')}</p>}
+                        <p>Nenhum agendamento encontrado.</p>
                     </div>
                 ) : (
                     filteredSchedules.map(sch => {
@@ -730,28 +851,47 @@ export const VehicleScheduleModule: React.FC<VehicleScheduleModuleProps> = ({ on
                         const isSameDay = start.date === end.date;
                         const isToday = new Date(sch.start_time).toDateString() === new Date().toDateString();
                         const isConflict = hasScheduleConflict(sch);
+                        const isSelected = selectedIds.includes(sch.id);
 
                         return (
-                            <div key={sch.id} className={`bg-white rounded-lg border-l-4 shadow-sm hover:shadow-md transition-shadow p-4 flex flex-col relative group ${isConflict ? 'border-red-500 ring-2 ring-red-300' : (isToday ? 'border-[#C5A059]' : 'border-gray-300')}`}>
-                                <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1 z-10">
-                                    <button 
-                                        onClick={() => handleOpenEdit(sch)}
-                                        className="text-blue-400 hover:text-blue-600 bg-blue-50 hover:bg-blue-100 p-1 rounded"
-                                        title="Editar Agendamento"
-                                    >
-                                        <Edit size={16} />
-                                    </button>
-                                    <button 
-                                        onClick={() => setDeletingId(sch.id)}
-                                        className="text-red-400 hover:text-red-600 bg-red-50 hover:bg-red-100 p-1 rounded"
-                                        title="Cancelar Agendamento"
-                                    >
-                                        <Trash2 size={16} />
-                                    </button>
-                                </div>
+                            <div 
+                                key={sch.id} 
+                                onClick={() => isSelectionMode && toggleSelection(sch.id)}
+                                className={`
+                                    bg-white rounded-lg shadow-sm hover:shadow-md transition-all p-4 flex flex-col relative group cursor-pointer
+                                    ${isSelectionMode ? 'ring-2 cursor-pointer' : ''}
+                                    ${isSelectionMode && isSelected ? 'ring-orange-500 bg-orange-50' : 'ring-transparent'}
+                                    ${isConflict ? 'border-l-4 border-red-500' : (isToday ? 'border-l-4 border-[#C5A059]' : 'border-l-4 border-gray-300')}
+                                `}
+                            >
+                                {isSelectionMode && (
+                                    <div className="absolute top-4 right-4 z-20">
+                                        {isSelected 
+                                            ? <CheckSquare className="text-orange-500 fill-white" size={24} /> 
+                                            : <Square className="text-gray-300" size={24} />
+                                        }
+                                    </div>
+                                )}
+
+                                {!isSelectionMode && (
+                                    <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1 z-10">
+                                        <button 
+                                            onClick={(e) => { e.stopPropagation(); handleOpenEdit(sch); }}
+                                            className="text-blue-400 hover:text-blue-600 bg-blue-50 hover:bg-blue-100 p-1 rounded"
+                                        >
+                                            <Edit size={16} />
+                                        </button>
+                                        <button 
+                                            onClick={(e) => { e.stopPropagation(); setDeletingId(sch.id); }}
+                                            className="text-red-400 hover:text-red-600 bg-red-50 hover:bg-red-100 p-1 rounded"
+                                        >
+                                            <Trash2 size={16} />
+                                        </button>
+                                    </div>
+                                )}
 
                                 <div className="flex items-center justify-between mb-3">
-                                    <div className="bg-[#3E3223] text-[#C5A059] font-bold font-mono px-3 py-1.5 rounded-md text-xl flex items-center gap-2">
+                                    <div className={`bg-[#3E3223] text-[#C5A059] font-bold font-mono px-3 py-1.5 rounded-md text-xl flex items-center gap-2 ${isSelected ? 'opacity-100' : ''}`}>
                                         <Car size={20} /> {sch.vehicle_prefix}
                                     </div>
                                     <div className="flex flex-col items-end gap-1">
@@ -771,33 +911,23 @@ export const VehicleScheduleModule: React.FC<VehicleScheduleModuleProps> = ({ on
                                 <div className="mb-3 pl-1">
                                     {isSameDay ? (
                                         <div className="flex flex-col">
-                                            {/* DATA EM DESTAQUE (Cor mantida, tamanho reduzido) */}
                                             <div className="flex items-center gap-2 text-[#C5A059] font-bold text-sm">
                                                 <Calendar size={16} />
                                                 <span>{start.date}</span>
                                             </div>
-                                            {/* HORA SECUNDÁRIA */}
                                             <div className="flex items-center gap-1 text-gray-600 font-semibold text-sm mt-1">
                                                 <Clock size={16} />
                                                 <span>{start.time} às {end.time}</span>
                                             </div>
                                         </div>
                                     ) : (
-                                        /* LÓGICA VERTICAL PARA MÚLTIPLOS DIAS */
                                         <div className="flex flex-col gap-0.5">
-                                            {/* INÍCIO */}
                                             <div className="flex items-center gap-2">
                                                 <Calendar size={16} className="text-[#C5A059]" />
                                                 <span className="text-[#C5A059] font-bold text-sm">{start.date}</span>
                                                 <span className="text-gray-600 font-semibold text-sm">{start.time}</span>
                                             </div>
-                                            
-                                            {/* CONECTOR */}
-                                            <div className="pl-7 text-xs text-gray-400 font-medium">
-                                                até
-                                            </div>
-
-                                            {/* FIM */}
+                                            <div className="pl-7 text-xs text-gray-400 font-medium">até</div>
                                             <div className="flex items-center gap-2">
                                                 <Calendar size={16} className="text-[#C5A059]" />
                                                 <span className="text-[#C5A059] font-bold text-sm">{end.date}</span>
@@ -806,15 +936,12 @@ export const VehicleScheduleModule: React.FC<VehicleScheduleModuleProps> = ({ on
                                         </div>
                                     )}
                                 </div>
-
                                 <div className="flex items-center gap-2 text-gray-700 text-sm mb-1 mt-2">
                                     <User size={14} /> {sch.driver_name}
                                 </div>
-                                
                                 <div className="bg-gray-50 p-2 rounded text-xs text-gray-600 italic mt-2 border border-gray-100">
                                     <span className="font-bold not-italic text-gray-700">Motivo:</span> {sch.reason}
                                 </div>
-
                                 {sch.observations && (
                                     <div className="mt-2 text-xs text-blue-600 flex items-start gap-1">
                                         <Info size={12} className="mt-0.5 shrink-0" /> {sch.observations}
@@ -826,6 +953,202 @@ export const VehicleScheduleModule: React.FC<VehicleScheduleModuleProps> = ({ on
                 )}
             </div>
         </div>
+
+        {/* BARRA FLUTUANTE DE AÇÃO EM LOTE */}
+        {isSelectionMode && (
+            <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-gray-900 text-white px-6 py-4 rounded-full shadow-2xl flex items-center gap-4 z-50 animate-fade-in border border-gray-700">
+                <div className="font-bold text-sm flex items-center gap-2 border-r border-gray-600 pr-4">
+                    <span className="bg-orange-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs">
+                        {selectedIds.length}
+                    </span>
+                    <span>Selecionados</span>
+                </div>
+                
+                <button 
+                    onClick={toggleAllSelection}
+                    className="text-gray-300 hover:text-white text-sm font-semibold"
+                >
+                    {selectedIds.length === filteredSchedules.length ? "Desmarcar" : "Todos"}
+                </button>
+
+                {selectedIds.length > 0 && (
+                    <>
+                        <button 
+                            onClick={() => { 
+                                setIsBatchEditOpen(true); 
+                                setBatchVehiclePrefix(''); 
+                                setBatchStartHour('');
+                                setBatchEndHour('');
+                                setIgnoreBatchConflict(false); 
+                                setBatchEditTab('VEHICLE');
+                            }}
+                            className="bg-[#C5A059] hover:bg-[#b08d4a] text-[#3E3223] px-4 py-2 rounded-full font-bold text-sm flex items-center gap-2 transition-transform hover:scale-105"
+                        >
+                            <Edit size={16} /> Editar
+                        </button>
+                        <button 
+                            onClick={() => setIsBatchDeleteOpen(true)}
+                            className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-full font-bold text-sm flex items-center gap-2 transition-transform hover:scale-105"
+                        >
+                            <Trash2 size={16} /> Excluir
+                        </button>
+                    </>
+                )}
+
+                <button 
+                    onClick={() => { setIsSelectionMode(false); setSelectedIds([]); }}
+                    className="ml-2 p-1 hover:bg-gray-800 rounded-full text-gray-400 hover:text-white"
+                >
+                    <X size={20} />
+                </button>
+            </div>
+        )}
+
+        {/* MODAL EXCLUSÃO EM LOTE */}
+        {isBatchDeleteOpen && (
+            <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-[85] p-4">
+                <div className="bg-white p-6 rounded-lg shadow-2xl w-full max-w-md border-t-4 border-red-600 animate-fade-in">
+                    <h3 className="text-xl font-bold text-red-700 mb-4 flex items-center gap-2">
+                        <Trash2 /> Excluir {selectedIds.length} itens?
+                    </h3>
+                    <p className="text-gray-700 mb-6">
+                        Você está prestes a excluir permanentemente <strong>{selectedIds.length}</strong> agendamentos selecionados. Esta ação não pode ser desfeita.
+                    </p>
+                    <div className="flex justify-end gap-3">
+                        <button 
+                            onClick={() => setIsBatchDeleteOpen(false)} 
+                            className="px-4 py-2 text-gray-600 border rounded hover:bg-gray-100"
+                        >
+                            Cancelar
+                        </button>
+                        <button 
+                            onClick={handleBatchDelete} 
+                            disabled={loading}
+                            className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 font-bold"
+                        >
+                            {loading ? 'Excluindo...' : 'Sim, Excluir Todos'}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        )}
+
+        {/* MODAL EDIÇÃO EM LOTE (VIATURA OU HORÁRIO) */}
+        {isBatchEditOpen && (
+            <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-[80] p-4">
+                <div className="bg-white rounded-lg shadow-2xl w-full max-w-md border-t-8 border-orange-500 animate-fade-in">
+                    <div className="p-6">
+                        <h3 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
+                            <Layers className="text-orange-500" /> Edição em Lote
+                        </h3>
+                        <p className="text-sm text-gray-600 mb-4">
+                            Alterando <strong>{selectedIds.length}</strong> agendamentos selecionados.
+                        </p>
+
+                        {/* ABAS */}
+                        <div className="flex border-b mb-4">
+                            <button 
+                                onClick={() => setBatchEditTab('VEHICLE')}
+                                className={`flex-1 py-2 text-sm font-bold flex items-center justify-center gap-2 border-b-2 transition-colors ${
+                                    batchEditTab === 'VEHICLE' 
+                                    ? 'border-orange-500 text-orange-600' 
+                                    : 'border-transparent text-gray-400 hover:text-gray-600'
+                                }`}
+                            >
+                                <Car size={16} /> Trocar Viatura
+                            </button>
+                            <button 
+                                onClick={() => setBatchEditTab('TIME')}
+                                className={`flex-1 py-2 text-sm font-bold flex items-center justify-center gap-2 border-b-2 transition-colors ${
+                                    batchEditTab === 'TIME' 
+                                    ? 'border-orange-500 text-orange-600' 
+                                    : 'border-transparent text-gray-400 hover:text-gray-600'
+                                }`}
+                            >
+                                <Clock3 size={16} /> Alterar Horário
+                            </button>
+                        </div>
+
+                        {/* CONTEÚDO DA ABA */}
+                        {batchEditTab === 'VEHICLE' && (
+                            <div className="bg-gray-50 p-4 rounded border mb-4 animate-fade-in">
+                                <label className="block text-sm font-bold text-gray-700 mb-2">Selecione a Nova Viatura</label>
+                                <div className="relative">
+                                    <Car className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" />
+                                    <select 
+                                        className="w-full pl-10 border p-2 rounded focus:ring-2 focus:ring-orange-500 outline-none appearance-none bg-white"
+                                        value={batchVehiclePrefix}
+                                        onChange={e => setBatchVehiclePrefix(e.target.value)}
+                                    >
+                                        <option value="">Selecione...</option>
+                                        {vehicles.map(v => (
+                                            <option key={v.id} value={v.prefix}>{v.prefix} - {v.model} ({v.fraction})</option>
+                                        ))}
+                                    </select>
+                                </div>
+                            </div>
+                        )}
+
+                        {batchEditTab === 'TIME' && (
+                            <div className="bg-gray-50 p-4 rounded border mb-4 animate-fade-in">
+                                <p className="text-xs text-gray-600 mb-3">
+                                    O novo horário será aplicado a <strong>todos os dias</strong> selecionados, mantendo as datas originais.
+                                </p>
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div>
+                                        <label className="block text-xs font-bold text-gray-700 mb-1">Novo Início</label>
+                                        <input 
+                                            type="time" 
+                                            className="w-full border p-2 rounded focus:ring-2 focus:ring-orange-500 outline-none bg-white"
+                                            value={batchStartHour}
+                                            onChange={e => setBatchStartHour(e.target.value)}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-bold text-gray-700 mb-1">Novo Fim</label>
+                                        <input 
+                                            type="time" 
+                                            className="w-full border p-2 rounded focus:ring-2 focus:ring-orange-500 outline-none bg-white"
+                                            value={batchEndHour}
+                                            onChange={e => setBatchEndHour(e.target.value)}
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        <div className="flex items-center gap-2 mb-6">
+                            <input 
+                                type="checkbox" 
+                                id="ignoreConflict" 
+                                checked={ignoreBatchConflict}
+                                onChange={e => setIgnoreBatchConflict(e.target.checked)}
+                                className="w-4 h-4 text-orange-600 focus:ring-orange-500 border-gray-300 rounded"
+                            />
+                            <label htmlFor="ignoreConflict" className="text-sm text-gray-700 select-none cursor-pointer">
+                                Ignorar alertas de conflito
+                            </label>
+                        </div>
+
+                        <div className="flex justify-end gap-3">
+                            <button 
+                                onClick={() => setIsBatchEditOpen(false)}
+                                className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded border"
+                            >
+                                Cancelar
+                            </button>
+                            <button 
+                                onClick={handleBatchEdit}
+                                disabled={loading}
+                                className="px-4 py-2 bg-orange-600 text-white rounded hover:bg-orange-700 font-bold shadow-md flex items-center gap-2"
+                            >
+                                {loading ? 'Salvando...' : <><Check size={18} /> Confirmar</>}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        )}
 
         {/* Modal de Cadastro/Edição de Agendamento */}
         {isModalOpen && (
