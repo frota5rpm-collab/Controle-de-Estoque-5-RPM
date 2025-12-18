@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Copy, Check, Database, ArrowLeft } from 'lucide-react';
 
@@ -10,8 +11,8 @@ export const DatabaseSetup: React.FC<DatabaseSetupProps> = ({ onBack }) => {
 
   const sql = `
 -- =========================================================
--- SCRIPT ATUALIZADO (TABELAS + DADOS DE TESTE) v6
--- Execute este script no SQL Editor do Supabase para corrigir a tabela
+-- SCRIPT ATUALIZADO v7 (SUPORTE A VALORES FRACIONADOS)
+-- Execute este script no SQL Editor do Supabase
 -- =========================================================
 
 -- 1. HABILITAR CRIPTOGRAFIA
@@ -95,13 +96,13 @@ END;
 $$;
 
 
--- 5. TABELAS DO SISTEMA (ESTOQUE, FROTA, PAV, AGENDA, SUBSTITUIÇÃO)
+-- 5. TABELAS DO SISTEMA (ATUALIZADAS PARA NUMERIC)
 
 -- Materiais
 CREATE TABLE IF NOT EXISTS public.materials (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     name TEXT NOT NULL,
-    quantity INTEGER DEFAULT 0,
+    quantity NUMERIC DEFAULT 0, -- Alterado para NUMERIC
     unit TEXT DEFAULT 'Unidade',
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
@@ -123,7 +124,7 @@ CREATE TABLE IF NOT EXISTS public.movements (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     material_id UUID REFERENCES public.materials(id) ON DELETE CASCADE,
     type TEXT NOT NULL,
-    quantity INTEGER NOT NULL,
+    quantity NUMERIC NOT NULL, -- Alterado para NUMERIC
     requester TEXT,
     vehicle_prefix TEXT,
     guide_number TEXT,
@@ -161,17 +162,24 @@ CREATE TABLE IF NOT EXISTS public.vehicle_schedules (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
--- Substituição de Frota (NOVO)
+-- Substituição de Frota
 CREATE TABLE IF NOT EXISTS public.fleet_substitutions (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     received_prefix TEXT NOT NULL,
     received_plate TEXT NOT NULL,
     received_model TEXT,
     received_bgpm TEXT,
+    received_city TEXT,
+    received_unit TEXT,
     indicated_prefix TEXT,
     indicated_plate TEXT,
+    not_required BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
+
+-- 6. MIGRAÇÃO DE COLUNAS EXISTENTES (PARA CASO JÁ TENHA AS TABELAS)
+ALTER TABLE public.materials ALTER COLUMN quantity TYPE NUMERIC;
+ALTER TABLE public.movements ALTER COLUMN quantity TYPE NUMERIC;
 
 -- Permissões (RLS)
 ALTER TABLE public.materials ENABLE ROW LEVEL SECURITY;
@@ -199,7 +207,7 @@ CREATE POLICY "Public Access Schedules" ON public.vehicle_schedules FOR ALL USIN
 DROP POLICY IF EXISTS "Public Access Substitutions" ON public.fleet_substitutions;
 CREATE POLICY "Public Access Substitutions" ON public.fleet_substitutions FOR ALL USING (true) WITH CHECK (true);
 
--- Trigger de Estoque
+-- Trigger de Estoque (Funciona igual para NUMERIC)
 CREATE OR REPLACE FUNCTION handle_inventory_update() RETURNS TRIGGER AS $$
 BEGIN
     IF (TG_OP = 'DELETE' OR TG_OP = 'UPDATE') THEN
@@ -252,6 +260,7 @@ FOR EACH ROW EXECUTE FUNCTION handle_inventory_update();
 
         <div className="bg-blue-900/30 border border-blue-500/30 p-4 rounded mb-6">
             <h3 className="font-bold text-blue-300 mb-2">Instruções Importantes:</h3>
+            <p className="text-sm text-gray-300 mb-2">Foi adicionado suporte a valores fracionados (Ex: 1,5). Se você já tem o sistema funcionando, execute o SQL novamente para aplicar as mudanças de tipo de coluna.</p>
             <ol className="list-decimal list-inside text-gray-300 space-y-1 text-sm">
                 <li>Copie o código SQL abaixo.</li>
                 <li>Vá até o painel do Supabase do seu projeto ({'>'} SQL Editor).</li>

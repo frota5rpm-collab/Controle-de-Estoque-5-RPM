@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { Material } from '../types';
@@ -116,7 +117,7 @@ export const InventoryTab: React.FC = () => {
   };
 
   const getStatus = (m: Material) => {
-    if (m.quantity === 0) return 'NONE';
+    if (m.quantity <= 0) return 'NONE';
     if (m.quantity < 5) return 'LOW'; 
     return 'NORMAL';
   };
@@ -263,9 +264,9 @@ export const InventoryTab: React.FC = () => {
                 </label>
                 <input 
                   type="number" 
+                  step="any"
                   className="w-full border p-2 rounded bg-gray-100 text-gray-500 cursor-not-allowed"
                   value={formData.quantity} 
-                  onChange={e => setFormData({...formData, quantity: Number(e.target.value)})}
                   disabled={true} 
                 />
                 <p className="text-xs text-gray-500 mt-1">Para alterar a quantidade, realize uma Movimentação (Entrada/Saída).</p>

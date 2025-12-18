@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { Material, Movement, MovementType } from '../types';
@@ -410,6 +411,7 @@ export const MovementsTab: React.FC = () => {
                   <label className="block text-sm font-bold text-gray-700">Quantidade <span className="text-red-500">*</span></label>
                   <input 
                     type="number" 
+                    step="any"
                     className="w-full border p-2 rounded mt-1 focus:ring-2 focus:ring-pmmg-primary outline-none"
                     value={formData.quantity}
                     onChange={e => setFormData({...formData, quantity: Number(e.target.value)})}
