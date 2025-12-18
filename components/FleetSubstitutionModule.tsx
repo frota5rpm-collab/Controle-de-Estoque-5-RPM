@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { Home, Plus, Search, Edit, Trash2, LogOut, RefreshCw, Car, ArrowRight, AlertCircle, CheckCircle, XCircle, BarChart3, Clock, Check, FileUp, FileDown, MapPin, Building2, Calendar, FileText, ArrowUpDown, ArrowUp, ArrowDown, Info, Filter, Square, CheckSquare } from 'lucide-react';
+import { Home, Plus, Search, Edit, Trash2, LogOut, RefreshCw, Car, ArrowRight, AlertCircle, CheckCircle, XCircle, BarChart3, Clock, Check, FileUp, FileDown, MapPin, Building2, Calendar, FileText, ArrowUpDown, ArrowUp, ArrowDown, Info, Filter, Square, CheckSquare, AlertTriangle } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { FleetSubstitution } from '../types';
 import { exportToExcel } from '../utils/excel';
@@ -34,6 +34,9 @@ export const FleetSubstitutionModule: React.FC<FleetSubstitutionModuleProps> = (
   const [editingId, setEditingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
+  // Estados para aviso de duplicidade
+  const [duplicateWarning, setDuplicateWarning] = useState<{ plate: string; type: 'RECEIVED' | 'INDICATED' } | null>(null);
+
   const initialForm = {
       received_prefix: '',
       received_plate: '',
@@ -56,6 +59,19 @@ export const FleetSubstitutionModule: React.FC<FleetSubstitutionModuleProps> = (
   };
 
   useEffect(() => { fetchData(); }, []);
+
+  // Mapas para identificar duplicidades na tela
+  const receivedPlateCounts = substitutions.reduce((acc, curr) => {
+    const plate = curr.received_plate?.toUpperCase().trim();
+    if (plate) acc[plate] = (acc[plate] || 0) + 1;
+    return acc;
+  }, {} as Record<string, number>);
+
+  const indicatedPlateCounts = substitutions.reduce((acc, curr) => {
+    const plate = curr.indicated_plate?.toUpperCase().trim();
+    if (plate) acc[plate] = (acc[plate] || 0) + 1;
+    return acc;
+  }, {} as Record<string, number>);
 
   const uniqueCities = Array.from(new Set(substitutions.map(s => s.received_city).filter(Boolean))).sort();
   const uniqueUnits = Array.from(new Set(substitutions.map(s => s.received_unit).filter(Boolean))).sort();
@@ -130,27 +146,48 @@ export const FleetSubstitutionModule: React.FC<FleetSubstitutionModuleProps> = (
     }
   };
 
-  const handleSave = async () => {
-    if (!formData.received_prefix || !formData.received_plate) {
+  const handleSave = async (force: boolean = false) => {
+    const receivedPlate = formData.received_plate.toUpperCase().trim();
+    const indicatedPlate = formData.indicated_plate.toUpperCase().trim();
+
+    if (!formData.received_prefix || !receivedPlate) {
         alert("Dados da viatura recebida são obrigatórios.");
         return;
     }
+
+    // Verificação de duplicidade antes de salvar
+    if (!force) {
+        const isDuplicateReceived = substitutions.some(s => s.id !== editingId && s.received_plate?.toUpperCase().trim() === receivedPlate);
+        const isDuplicateIndicated = !formData.not_required && indicatedPlate && substitutions.some(s => s.id !== editingId && s.indicated_plate?.toUpperCase().trim() === indicatedPlate);
+
+        if (isDuplicateReceived) {
+            setDuplicateWarning({ plate: receivedPlate, type: 'RECEIVED' });
+            return;
+        }
+        if (isDuplicateIndicated) {
+            setDuplicateWarning({ plate: indicatedPlate, type: 'INDICATED' });
+            return;
+        }
+    }
+
     const payload = {
         received_prefix: formData.received_prefix,
-        received_plate: formData.received_plate.toUpperCase(),
+        received_plate: receivedPlate,
         received_model: formData.received_model,
         received_bgpm: formData.received_bgpm,
         received_city: formData.received_city,
         received_unit: formData.received_unit,
         indicated_prefix: formData.not_required ? null : (formData.indicated_prefix || null),
-        indicated_plate: formData.not_required ? null : (formData.indicated_plate ? formData.indicated_plate.toUpperCase() : null),
+        indicated_plate: formData.not_required ? null : (indicatedPlate || null),
         not_required: formData.not_required
     };
 
     try {
         if (editingId) await supabase.from('fleet_substitutions').update(payload).eq('id', editingId);
         else await supabase.from('fleet_substitutions').insert([payload]);
+        
         setIsModalOpen(false);
+        setDuplicateWarning(null);
         fetchData();
     } catch (e: any) {
         alert("Erro ao salvar: " + e.message);
@@ -202,7 +239,6 @@ export const FleetSubstitutionModule: React.FC<FleetSubstitutionModuleProps> = (
         return matchesSearch && matchesCity && matchesUnit && matchesStatus;
     })
     .sort((a, b) => {
-        // Ordenação Especial para BGPM (Número/Ano)
         if (sortConfig.key === 'received_bgpm') {
             const parseBgpm = (val: string | null) => {
                 if (!val || !val.includes('/')) return { num: 0, year: 0 };
@@ -211,17 +247,9 @@ export const FleetSubstitutionModule: React.FC<FleetSubstitutionModuleProps> = (
             };
             const aData = parseBgpm(a.received_bgpm);
             const bData = parseBgpm(b.received_bgpm);
-
-            if (aData.year !== bData.year) {
-                return sortConfig.direction === 'ASC' 
-                    ? aData.year - bData.year 
-                    : bData.year - aData.year;
-            }
-            return sortConfig.direction === 'ASC' 
-                ? aData.num - bData.num 
-                : bData.num - aData.num;
+            if (aData.year !== bData.year) return sortConfig.direction === 'ASC' ? aData.year - bData.year : bData.year - aData.year;
+            return sortConfig.direction === 'ASC' ? aData.num - bData.num : bData.num - aData.num;
         }
-
         let valA: any = a[sortConfig.key];
         let valB: any = b[sortConfig.key];
         if (typeof valA === 'string') valA = valA.toLowerCase();
@@ -321,11 +349,19 @@ export const FleetSubstitutionModule: React.FC<FleetSubstitutionModuleProps> = (
                             <tr><td colSpan={10} className="p-12 text-center text-gray-500 italic">Nenhum registro encontrado.</td></tr>
                         ) : filteredItems.map((item) => {
                             const isCompleted = item.not_required || (item.indicated_prefix && item.indicated_plate);
+                            const isReceivedDuplicate = receivedPlateCounts[item.received_plate?.toUpperCase().trim() || ''] > 1;
+                            const isIndicatedDuplicate = item.indicated_plate && indicatedPlateCounts[item.indicated_plate?.toUpperCase().trim() || ''] > 1;
+
                             return (
                                 <tr key={item.id} className={`border-b hover:bg-amber-50 group transition-colors ${item.not_required ? 'bg-blue-50/20' : ''}`}>
                                     <td className="p-3 border-r font-mono text-gray-500">{item.received_bgpm || '-'}</td>
                                     <td className="p-3 border-r font-bold text-[#3E3223]">{item.received_prefix}</td>
-                                    <td className="p-3 border-r font-bold font-mono text-gray-700">{item.received_plate}</td>
+                                    <td className={`p-3 border-r font-bold font-mono text-gray-700 relative ${isReceivedDuplicate ? 'bg-red-50 ring-2 ring-inset ring-red-500 animate-pulse' : ''}`}>
+                                        {item.received_plate}
+                                        {isReceivedDuplicate && (
+                                            <div className="absolute top-0 right-0 bg-red-600 text-white text-[8px] px-1 rounded-bl leading-tight font-black uppercase">Veículo Duplicado</div>
+                                        )}
+                                    </td>
                                     <td className="p-3 border-r text-gray-600 italic text-sm">{item.received_model || '-'}</td>
                                     <td className="p-3 border-r text-gray-600 uppercase text-sm">{item.received_city || '-'}</td>
                                     <td className="p-3 border-r text-gray-600 uppercase text-sm">{item.received_unit || '-'}</td>
@@ -335,8 +371,11 @@ export const FleetSubstitutionModule: React.FC<FleetSubstitutionModuleProps> = (
                                     <td className="p-3 border-r font-bold text-[#3E3223]">
                                         {item.not_required ? <span className="text-gray-400 font-normal italic">N/A</span> : (item.indicated_prefix || <span className="text-gray-300 font-normal italic">Pendente</span>)}
                                     </td>
-                                    <td className="p-3 border-r font-bold font-mono text-gray-700">
+                                    <td className={`p-3 border-r font-bold font-mono text-gray-700 relative ${isIndicatedDuplicate ? 'bg-red-50 ring-2 ring-inset ring-red-500 animate-pulse' : ''}`}>
                                         {item.not_required ? <span className="text-gray-400 font-normal italic">N/A</span> : (item.indicated_plate || <span className="text-gray-300 font-normal italic">-</span>)}
+                                        {isIndicatedDuplicate && !item.not_required && (
+                                            <div className="absolute top-0 right-0 bg-red-600 text-white text-[8px] px-1 rounded-bl leading-tight font-black uppercase">Veículo Duplicado</div>
+                                        )}
                                     </td>
                                     <td className="p-3 text-center">
                                         <div className="flex justify-center gap-2">
@@ -352,11 +391,30 @@ export const FleetSubstitutionModule: React.FC<FleetSubstitutionModuleProps> = (
             </div>
         </div>
 
+        {/* MODAL DE REGISTRO */}
         {isModalOpen && (
             <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 overflow-y-auto">
                 <div className="bg-white rounded-lg shadow-2xl w-full max-w-3xl border-t-8 border-[#C5A059] animate-fade-in my-8">
                     <div className="p-6">
                         <h2 className="text-2xl font-bold text-[#3E3223] mb-6 flex items-center gap-2">{editingId ? 'Editar Registro' : 'Nova Substituição de Frota'}</h2>
+                        
+                        {/* AVISO DE DUPLICIDADE AO SALVAR */}
+                        {duplicateWarning && (
+                            <div className="bg-red-50 border-l-4 border-red-600 p-4 mb-6 animate-bounce">
+                                <div className="flex items-center gap-3">
+                                    <AlertTriangle className="text-red-600" />
+                                    <div>
+                                        <p className="text-red-800 font-bold">ALERTA DE CONFLITO!</p>
+                                        <p className="text-sm text-red-700">A placa <strong>{duplicateWarning.plate}</strong> já está lançada no sistema como viatura {duplicateWarning.type === 'RECEIVED' ? 'recebida' : 'indicada'}.</p>
+                                        <div className="mt-3 flex gap-2">
+                                            <button onClick={() => handleSave(true)} className="bg-red-600 text-white px-4 py-1.5 rounded text-xs font-black uppercase shadow-md hover:bg-red-700 transition-all">Desejo lançar assim mesmo</button>
+                                            <button onClick={() => setDuplicateWarning(null)} className="bg-gray-200 text-gray-700 px-4 py-1.5 rounded text-xs font-bold hover:bg-gray-300 transition-all">Cancelar e Revisar</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
                         <div className="bg-green-50 p-5 rounded-lg border border-green-200 mb-6">
                             <h3 className="font-black text-green-800 mb-4 flex items-center gap-2 text-xs uppercase border-b border-green-200 pb-2"><Car size={16} /> 1. Viatura Recebida</h3>
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -368,6 +426,7 @@ export const FleetSubstitutionModule: React.FC<FleetSubstitutionModuleProps> = (
                                 <div className="lg:col-span-3"><label className="block text-xs font-black text-gray-500 uppercase mb-1">Marca/Modelo Completo</label><input className="w-full border-2 border-green-100 p-2.5 rounded-lg focus:border-green-500 outline-none" value={formData.received_model} onChange={e => setFormData({...formData, received_model: e.target.value})} /></div>
                             </div>
                         </div>
+
                         <div className="bg-gray-100 p-5 rounded-lg border-2 border-dashed border-gray-300 mt-4 shadow-inner">
                             <div className="flex justify-between items-center mb-4 border-b pb-2">
                                 <h3 className="font-black text-gray-600 flex items-center gap-2 text-xs uppercase"><Car size={16} /> 2. Viatura Indicada para Troca</h3>
@@ -382,7 +441,11 @@ export const FleetSubstitutionModule: React.FC<FleetSubstitutionModuleProps> = (
                                 <div className="flex items-center justify-center p-4 bg-blue-50 text-blue-800 text-xs font-bold rounded animate-fade-in"><Info size={16} className="mr-2" /> MARCADO COMO NÃO NECESSÁRIA.</div>
                             )}
                         </div>
-                        <div className="flex justify-end gap-3 mt-8 pt-4 border-t border-gray-100"><button onClick={() => setIsModalOpen(false)} className="px-8 py-2.5 text-gray-600 hover:bg-gray-100 rounded border font-bold">Cancelar</button><button onClick={handleSave} className="px-10 py-2.5 bg-[#3E3223] text-[#C5A059] rounded-lg hover:bg-[#2a2218] shadow-lg font-black uppercase tracking-widest transition-all">Salvar</button></div>
+
+                        <div className="flex justify-end gap-3 mt-8 pt-4 border-t border-gray-100">
+                            <button onClick={() => { setIsModalOpen(false); setDuplicateWarning(null); }} className="px-8 py-2.5 text-gray-600 hover:bg-gray-100 rounded border font-bold">Cancelar</button>
+                            <button onClick={() => handleSave(false)} className="px-10 py-2.5 bg-[#3E3223] text-[#C5A059] rounded-lg hover:bg-[#2a2218] shadow-lg font-black uppercase tracking-widest transition-all">Salvar</button>
+                        </div>
                     </div>
                 </div>
             </div>
