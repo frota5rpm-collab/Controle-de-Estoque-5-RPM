@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { Material, Movement, MovementType } from '../types';
-import { Plus, ArrowDownCircle, ArrowUpCircle, FileDown, Search, Edit, XCircle, ArrowUpDown, ArrowUp, ArrowDown, PackagePlus, MessageSquare, Trash2, AlertTriangle } from 'lucide-react';
+import { Plus, ArrowDownCircle, ArrowUpCircle, FileDown, Search, Edit, XCircle, ArrowUpDown, ArrowUp, ArrowDown, PackagePlus, MessageSquare, Trash2, AlertTriangle, Filter, Hash } from 'lucide-react';
 import { exportToExcel } from '../utils/excel';
 
 type SortKey = 'created_at' | 'type' | 'material_name' | 'quantity' | 'requester' | 'vehicle_prefix' | 'guide_number';
@@ -15,6 +15,10 @@ export const MovementsTab: React.FC = () => {
   const [isAdding, setIsAdding] = useState(false);
   const [isEditing, setIsEditing] = useState<Movement | null>(null);
   const [search, setSearch] = useState('');
+
+  // Novos Filtros
+  const [filterType, setFilterType] = useState<'ALL' | MovementType>('ALL');
+  const [filterGuideStatus, setFilterGuideStatus] = useState<'ALL' | 'WITH_GUIDE' | 'WITHOUT_GUIDE'>('ALL');
 
   // Estado para exclusão
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -215,12 +219,23 @@ export const MovementsTab: React.FC = () => {
   };
 
   const filteredMovements = movements
-    .filter(m => 
-      (m.material_name?.toLowerCase() || '').includes(search.toLowerCase()) ||
-      (m.requester?.toLowerCase() || '').includes(search.toLowerCase()) ||
-      (m.vehicle_prefix?.toLowerCase() || '').includes(search.toLowerCase()) ||
-      (m.guide_number?.toLowerCase() || '').includes(search.toLowerCase())
-    )
+    .filter(m => {
+      const matchesSearch = 
+        (m.material_name?.toLowerCase() || '').includes(search.toLowerCase()) ||
+        (m.requester?.toLowerCase() || '').includes(search.toLowerCase()) ||
+        (m.vehicle_prefix?.toLowerCase() || '').includes(search.toLowerCase()) ||
+        (m.guide_number?.toLowerCase() || '').includes(search.toLowerCase());
+      
+      const matchesType = filterType === 'ALL' || m.type === filterType;
+      
+      const hasGuide = m.guide_number && m.guide_number.trim() !== '';
+      const matchesGuideStatus = 
+        filterGuideStatus === 'ALL' ||
+        (filterGuideStatus === 'WITH_GUIDE' && hasGuide) ||
+        (filterGuideStatus === 'WITHOUT_GUIDE' && !hasGuide);
+
+      return matchesSearch && matchesType && matchesGuideStatus;
+    })
     .sort((a, b) => {
       let valA: any = a[sortConfig.key as keyof Movement];
       let valB: any = b[sortConfig.key as keyof Movement];
@@ -241,30 +256,60 @@ export const MovementsTab: React.FC = () => {
   return (
     <div className="space-y-6">
       <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4 bg-white p-4 rounded-lg shadow-sm border-l-4 border-pmmg-primary">
-        <div className="relative w-full xl:w-96">
-           <Search className="absolute left-2 top-2.5 h-4 w-4 text-gray-400" />
-           <input
-              type="text"
-              placeholder="Buscar por material, responsável, prefixo ou guia..."
-              className="pl-8 pr-4 py-2 border rounded-md w-full outline-none focus:ring-2 focus:ring-pmmg-primary"
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-            />
+        <div className="flex flex-col sm:flex-row items-center gap-2 w-full xl:w-auto flex-wrap">
+          <div className="relative w-full sm:w-64">
+             <Search className="absolute left-2 top-2.5 h-4 w-4 text-gray-400" />
+             <input
+                type="text"
+                placeholder="Buscar material, militar, vtr..."
+                className="pl-8 pr-4 py-2 border rounded-md w-full outline-none focus:ring-2 focus:ring-pmmg-primary text-sm shadow-sm"
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+              />
+          </div>
+
+          {/* Filtro Tipo */}
+          <div className="relative w-full sm:w-40">
+            <Filter className="absolute left-2 top-2.5 h-4 w-4 text-gray-400" />
+            <select 
+              className="pl-8 pr-4 py-2 border rounded-md w-full outline-none focus:ring-2 focus:ring-pmmg-primary text-sm bg-white appearance-none cursor-pointer shadow-sm"
+              value={filterType}
+              onChange={e => setFilterType(e.target.value as any)}
+            >
+              <option value="ALL">Tipo: Todos</option>
+              <option value={MovementType.ENTRY}>Entradas</option>
+              <option value={MovementType.EXIT}>Saídas</option>
+            </select>
+          </div>
+
+          {/* Filtro Guia */}
+          <div className="relative w-full sm:w-44">
+            <Hash className="absolute left-2 top-2.5 h-4 w-4 text-gray-400" />
+            <select 
+              className="pl-8 pr-4 py-2 border rounded-md w-full outline-none focus:ring-2 focus:ring-pmmg-primary text-sm bg-white appearance-none cursor-pointer shadow-sm"
+              value={filterGuideStatus}
+              onChange={e => setFilterGuideStatus(e.target.value as any)}
+            >
+              <option value="ALL">Guia: Todas</option>
+              <option value="WITH_GUIDE">Com Nº Guia</option>
+              <option value="WITHOUT_GUIDE">Sem Nº Guia</option>
+            </select>
+          </div>
         </div>
         
         <div className="flex flex-col items-end gap-2 w-full xl:w-auto">
             <div className="flex gap-2">
                <button 
-                onClick={() => exportToExcel(movements, 'Movimentacoes_Frota_5RPM')}
-                className="flex items-center gap-2 px-3 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors shadow-sm"
+                onClick={() => exportToExcel(filteredMovements, 'Movimentacoes_Filtradas_5RPM')}
+                className="flex items-center gap-2 px-3 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors shadow-sm text-sm font-bold"
               >
-                <FileDown size={16} /> Exportar Excel
+                <FileDown size={16} /> Excel
               </button>
               <button 
                 onClick={() => { setIsAdding(true); setFormData(initialForm); }}
-                className="flex items-center gap-2 px-3 py-2 bg-pmmg-primary text-white rounded-md hover:bg-[#3E3223] transition-colors shadow-sm"
+                className="flex items-center gap-2 px-3 py-2 bg-pmmg-primary text-white rounded-md hover:bg-[#3E3223] transition-colors shadow-sm text-sm font-bold"
               >
-                <Plus size={16} /> Nova Movimentação
+                <Plus size={16} /> Nova
               </button>
             </div>
         </div>
