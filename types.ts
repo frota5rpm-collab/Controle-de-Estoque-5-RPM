@@ -44,6 +44,7 @@ export interface PavProcess {
   reds_number: string;
   pav_number: string;
   inquirer: string;
+  inquirer_pm_number: string; // Novo campo
   sent_to_inquirer: boolean;
   os_request_date: string | null;
   os_number: string;

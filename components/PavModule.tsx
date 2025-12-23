@@ -1,5 +1,6 @@
+
 import React, { useState, useEffect } from 'react';
-import { Home, FileText, Plus, Search, Edit, Trash2, CheckCircle, XCircle, Calendar, AlertCircle, FileUp, Filter, ArrowUp, ArrowDown, ArrowUpDown, MessageSquare, MapPin, LogOut } from 'lucide-react';
+import { Home, FileText, Plus, Search, Edit, Trash2, CheckCircle, XCircle, Calendar, AlertCircle, FileUp, Filter, ArrowUp, ArrowDown, ArrowUpDown, MessageSquare, MapPin, LogOut, User } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { PavProcess } from '../types';
 import { exportToExcel, parseExcel } from '../utils/excel';
@@ -36,6 +37,17 @@ export const PavModule: React.FC<PavModuleProps> = ({ onBack, userEmail, onLogou
   // Estado para exclusão segura
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
+  // Formata o PM para 123.456-7
+  const formatPmNumber = (value: string) => {
+      let v = value.replace(/\D/g, '').slice(0, 7);
+      if (v.length > 6) {
+          v = v.replace(/^(\d{3})(\d{3})(\d)/, '$1.$2-$3');
+      } else if (v.length > 3) {
+          v = v.replace(/^(\d{3})(\d)/, '$1.$2');
+      }
+      return v;
+  };
+
   // Estado do Formulário
   const initialForm = {
     fraction: '',
@@ -45,6 +57,7 @@ export const PavModule: React.FC<PavModuleProps> = ({ onBack, userEmail, onLogou
     reds_number: '',
     pav_number: '',
     inquirer: '',
+    inquirer_pm_number: '', // Novo campo
     sent_to_inquirer: false,
     os_request_date: '',
     os_number: '',
@@ -87,6 +100,7 @@ export const PavModule: React.FC<PavModuleProps> = ({ onBack, userEmail, onLogou
         'accident_date', 
         'pav_number', 
         'inquirer', 
+        'inquirer_pm_number', // Novo obrigatório
         'os_number', 
         'os_request_date'
     ];
@@ -112,7 +126,8 @@ export const PavModule: React.FC<PavModuleProps> = ({ onBack, userEmail, onLogou
     try {
         const payload = {
             ...formData,
-            inquirer: formData.inquirer.toUpperCase(), // Garante maiúsculo ao salvar
+            inquirer: formData.inquirer.toUpperCase(),
+            inquirer_pm_number: formData.inquirer_pm_number.replace(/\D/g, ''), // Salva limpo no banco
             accident_date: formData.accident_date || null,
             os_request_date: formData.os_request_date || null,
             os_followup_date: formData.os_followup_date || null,
@@ -139,7 +154,6 @@ export const PavModule: React.FC<PavModuleProps> = ({ onBack, userEmail, onLogou
     }
   };
 
-  // Função para efetivar a exclusão após confirmação no modal
   const confirmDelete = async () => {
       if (!deletingId) return;
 
@@ -159,7 +173,6 @@ export const PavModule: React.FC<PavModuleProps> = ({ onBack, userEmail, onLogou
       try {
         const data = await parseExcel(e.target.files[0]);
         
-        // Função auxiliar para buscar chave
         const findValue = (row: any, searchKeys: string[]) => {
             const objectKeys = Object.keys(row);
             for (const searchKey of searchKeys) {
@@ -173,20 +186,22 @@ export const PavModule: React.FC<PavModuleProps> = ({ onBack, userEmail, onLogou
             const sentRaw = findValue(row, ['enviado', 'status']);
             const isSent = typeof sentRaw === 'string' ? sentRaw.toLowerCase().includes('sim') || sentRaw.toLowerCase().includes('ok') : !!sentRaw;
             const inquirerName = findValue(row, ['encarregado']) || '';
+            const inquirerPmRaw = String(findValue(row, ['pm', 'n pm']) || '');
 
             return {
                 fraction: findValue(row, ['fracao', 'unidade', 'companhia']) || '',
                 vehicle_prefix: findValue(row, ['prefixo', 'viatura']) || '',
                 vehicle_plate: findValue(row, ['placa']) || '',
                 reds_number: findValue(row, ['reds', 'bo']) || '',
-                accident_date: null, // Datas do Excel requerem tratamento específico, importando null por padrão para evitar erros, ou converter se for string ISO
+                accident_date: null,
                 pav_number: findValue(row, ['pav', 'n_pav']) || '',
                 inquirer: String(inquirerName).toUpperCase(),
+                inquirer_pm_number: inquirerPmRaw.replace(/\D/g, '').slice(0, 7),
                 sent_to_inquirer: isSent,
                 os_number: findValue(row, ['os', 'ordem']) || '',
                 observations: findValue(row, ['obs', 'observacao']) || ''
             };
-        }).filter(r => r.vehicle_prefix && r.reds_number); // Filtra linhas inválidas
+        }).filter(r => r.vehicle_prefix && r.reds_number);
 
         if (formattedData.length > 0) {
           const { error } = await supabase.from('pav_processes').insert(formattedData);
@@ -219,7 +234,7 @@ export const PavModule: React.FC<PavModuleProps> = ({ onBack, userEmail, onLogou
   };
 
   const openModal = (process?: PavProcess) => {
-      setErrors({}); // Limpa erros ao abrir
+      setErrors({});
       if (process) {
           setIsEditing(process);
           setFormData({
@@ -230,6 +245,7 @@ export const PavModule: React.FC<PavModuleProps> = ({ onBack, userEmail, onLogou
               reds_number: process.reds_number || '',
               pav_number: process.pav_number || '',
               inquirer: (process.inquirer || '').toUpperCase(),
+              inquirer_pm_number: formatPmNumber(process.inquirer_pm_number || ''),
               sent_to_inquirer: process.sent_to_inquirer || false,
               os_request_date: process.os_request_date || '',
               os_number: process.os_number || '',
@@ -243,7 +259,6 @@ export const PavModule: React.FC<PavModuleProps> = ({ onBack, userEmail, onLogou
       setIsModalOpen(true);
   };
 
-  // Helper para classes de input com erro
   const getInputClass = (field: string) => {
       const baseClass = "w-full border p-2 rounded focus:outline-none transition-colors ";
       if (errors[field]) {
@@ -252,7 +267,6 @@ export const PavModule: React.FC<PavModuleProps> = ({ onBack, userEmail, onLogou
       return baseClass + "focus:ring-2 focus:ring-[#C5A059]";
   };
 
-  // Filtragem e Ordenação
   const processedProcesses = processes
     .filter(p => {
         const matchesSearch = 
@@ -260,6 +274,7 @@ export const PavModule: React.FC<PavModuleProps> = ({ onBack, userEmail, onLogou
             (p.reds_number || '').toLowerCase().includes(search.toLowerCase()) ||
             (p.pav_number || '').toLowerCase().includes(search.toLowerCase()) ||
             (p.inquirer || '').toLowerCase().includes(search.toLowerCase()) ||
+            (p.inquirer_pm_number || '').toLowerCase().includes(search.toLowerCase()) ||
             (p.vehicle_plate || '').toLowerCase().includes(search.toLowerCase());
         
         const matchesStatus = 
@@ -277,7 +292,6 @@ export const PavModule: React.FC<PavModuleProps> = ({ onBack, userEmail, onLogou
         let valA: any = a[sortConfig.key];
         let valB: any = b[sortConfig.key];
 
-        // Tratamento para nulos e strings
         if (valA === null || valA === undefined) valA = '';
         if (valB === null || valB === undefined) valB = '';
 
@@ -289,7 +303,6 @@ export const PavModule: React.FC<PavModuleProps> = ({ onBack, userEmail, onLogou
         return 0;
     });
 
-  // Formatação de data simples
   const formatDate = (dateString: string | null) => {
       if (!dateString) return '-';
       return new Date(dateString).toLocaleDateString('pt-BR', { timeZone: 'UTC' });
@@ -297,11 +310,8 @@ export const PavModule: React.FC<PavModuleProps> = ({ onBack, userEmail, onLogou
 
   return (
     <div className="min-h-screen bg-[#958458] font-sans flex flex-col">
-      {/* Header Específico do PAV - Padronizado com App.tsx */}
       <header className="bg-[#3E3223] shadow-lg sticky top-0 z-40 border-b-4 border-[#C5A059]">
         <div className="container mx-auto px-4 h-32 flex items-center justify-between">
-          
-          {/* Lado Esquerdo: Escudo e Botão Voltar */}
           <div className="flex items-center gap-4 py-2">
              <button 
                 onClick={onBack}
@@ -318,8 +328,6 @@ export const PavModule: React.FC<PavModuleProps> = ({ onBack, userEmail, onLogou
                style={{ height: '7rem' }}
              />
           </div>
-          
-          {/* Lado Direito: Título */}
           <div className="text-right">
              <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight text-[#C5A059] drop-shadow-md shadow-black/50 font-serif uppercase">
                CONTROLE DE PAV
@@ -327,7 +335,6 @@ export const PavModule: React.FC<PavModuleProps> = ({ onBack, userEmail, onLogou
              <p className="text-lg font-bold text-[#C5A059] opacity-90 tracking-widest font-serif">
                 FROTA 5ª RPM
              </p>
-             {/* Mensagem simples de boas vindas */}
              <div className="text-right mt-1">
                  <span className="text-sm font-semibold text-white/90">
                     Bem-vindo, {userEmail}
@@ -335,8 +342,6 @@ export const PavModule: React.FC<PavModuleProps> = ({ onBack, userEmail, onLogou
              </div>
           </div>
         </div>
-
-        {/* Sub-header com Logout (Igual ao App.tsx, mas sem abas) */}
         <div className="bg-[#4A3B2A]/90 backdrop-blur-sm text-white/90">
           <div className="container mx-auto px-4 flex justify-end items-center py-2">
              <button 
@@ -352,17 +357,13 @@ export const PavModule: React.FC<PavModuleProps> = ({ onBack, userEmail, onLogou
 
       <main className="container mx-auto px-4 py-8 flex-grow">
         <div className="bg-[#fdfbf7] rounded-xl shadow-2xl border border-[#d4c5a3] p-6 min-h-[600px]">
-            
-            {/* Barra de Ferramentas */}
             <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 mb-6">
-                
-                {/* Filtros e Busca */}
                 <div className="flex flex-col sm:flex-row gap-2 w-full lg:w-auto flex-1">
                     <div className="relative w-full sm:w-80">
                         <Search className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" />
                         <input 
                             type="text"
-                            placeholder="Buscar (Prefixo, REDS, PAV, Encarregado)..."
+                            placeholder="Buscar (Vtr, REDS, PM Encarregado)..."
                             className="w-full pl-10 pr-4 py-2 border rounded-md focus:ring-2 focus:ring-[#C5A059] outline-none"
                             value={search}
                             onChange={(e) => setSearch(e.target.value)}
@@ -403,7 +404,6 @@ export const PavModule: React.FC<PavModuleProps> = ({ onBack, userEmail, onLogou
                     </div>
                 </div>
 
-                {/* Botões de Ação */}
                 <div className="flex gap-2 w-full lg:w-auto justify-end flex-wrap">
                      <label className="flex items-center gap-2 px-4 py-2 bg-[#556B2F] text-white rounded cursor-pointer hover:bg-[#435525] transition-colors shadow-sm whitespace-nowrap">
                         <FileUp size={18} /> Importar Excel
@@ -424,7 +424,6 @@ export const PavModule: React.FC<PavModuleProps> = ({ onBack, userEmail, onLogou
                 </div>
             </div>
 
-            {/* Tabela */}
             <div className="overflow-x-auto rounded-lg border border-gray-200 shadow-sm">
                 <table className="w-full text-left border-collapse text-sm">
                     <thead className="bg-[#3E3223] text-white select-none">
@@ -481,11 +480,12 @@ export const PavModule: React.FC<PavModuleProps> = ({ onBack, userEmail, onLogou
                                     </div>
                                 </td>
                                 <td className="p-3 border-r">
-                                    <div className="font-medium text-gray-900 mb-1">{(p.inquirer || '-').toUpperCase()}</div>
+                                    <div className="font-medium text-gray-900">{(p.inquirer || '-').toUpperCase()}</div>
+                                    <div className="text-xs text-gray-500 font-bold font-mono">Nº PM: {formatPmNumber(p.inquirer_pm_number || '')}</div>
                                     {p.pav_number ? (
-                                        <div className="text-lg font-bold font-mono text-[#3E3223]">{p.pav_number}</div>
+                                        <div className="text-lg font-bold font-mono text-[#3E3223] mt-1">{p.pav_number}</div>
                                     ) : (
-                                        <span className="text-gray-400 italic text-xs">Pendente</span>
+                                        <span className="text-gray-400 italic text-xs mt-1 block">Pendente</span>
                                     )}
                                 </td>
                                 <td className="p-3 border-r">
@@ -668,21 +668,35 @@ export const PavModule: React.FC<PavModuleProps> = ({ onBack, userEmail, onLogou
                                 </h3>
 
                                 <div>
+                                    <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Encarregado PAV <span className="text-red-500">*</span></label>
+                                    <div className="relative">
+                                        <User className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
+                                        <input 
+                                            className={getInputClass('inquirer') + " pl-10"}
+                                            value={formData.inquirer}
+                                            onChange={e => setFormData({...formData, inquirer: e.target.value.toUpperCase()})}
+                                            placeholder="Posto/Grad e Nome"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Nº PM do Encarregado <span className="text-red-500">*</span></label>
+                                    <input 
+                                        className={getInputClass('inquirer_pm_number')}
+                                        value={formData.inquirer_pm_number}
+                                        onChange={e => setFormData({...formData, inquirer_pm_number: formatPmNumber(e.target.value)})}
+                                        placeholder="123.456-7"
+                                        maxLength={9}
+                                    />
+                                </div>
+
+                                <div>
                                     <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Nº PAV <span className="text-red-500">*</span></label>
                                     <input 
                                         className={getInputClass('pav_number')}
                                         value={formData.pav_number}
                                         onChange={e => setFormData({...formData, pav_number: e.target.value})}
-                                    />
-                                </div>
-
-                                <div>
-                                    <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Encarregado PAV <span className="text-red-500">*</span></label>
-                                    <input 
-                                        className={getInputClass('inquirer')}
-                                        value={formData.inquirer}
-                                        onChange={e => setFormData({...formData, inquirer: e.target.value.toUpperCase()})}
-                                        placeholder="Posto/Grad e Nome"
                                     />
                                 </div>
 

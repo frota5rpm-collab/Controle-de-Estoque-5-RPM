@@ -11,7 +11,7 @@ export const DatabaseSetup: React.FC<DatabaseSetupProps> = ({ onBack }) => {
 
   const sql = `
 -- =========================================================
--- SCRIPT ATUALIZADO v7 (SUPORTE A VALORES FRACIONADOS)
+-- SCRIPT ATUALIZADO v8 (SUPORTE A Nº PM NO PAV)
 -- Execute este script no SQL Editor do Supabase
 -- =========================================================
 
@@ -102,7 +102,7 @@ $$;
 CREATE TABLE IF NOT EXISTS public.materials (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     name TEXT NOT NULL,
-    quantity NUMERIC DEFAULT 0, -- Alterado para NUMERIC
+    quantity NUMERIC DEFAULT 0,
     unit TEXT DEFAULT 'Unidade',
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
@@ -124,7 +124,7 @@ CREATE TABLE IF NOT EXISTS public.movements (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     material_id UUID REFERENCES public.materials(id) ON DELETE CASCADE,
     type TEXT NOT NULL,
-    quantity NUMERIC NOT NULL, -- Alterado para NUMERIC
+    quantity NUMERIC NOT NULL,
     requester TEXT,
     vehicle_prefix TEXT,
     guide_number TEXT,
@@ -142,6 +142,7 @@ CREATE TABLE IF NOT EXISTS public.pav_processes (
     reds_number TEXT,
     pav_number TEXT,
     inquirer TEXT,
+    inquirer_pm_number TEXT, -- Campo adicionado
     sent_to_inquirer BOOLEAN DEFAULT FALSE,
     os_request_date DATE,
     os_number TEXT,
@@ -177,9 +178,10 @@ CREATE TABLE IF NOT EXISTS public.fleet_substitutions (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
--- 6. MIGRAÇÃO DE COLUNAS EXISTENTES (PARA CASO JÁ TENHA AS TABELAS)
+-- 6. MIGRAÇÃO DE COLUNAS EXISTENTES
 ALTER TABLE public.materials ALTER COLUMN quantity TYPE NUMERIC;
 ALTER TABLE public.movements ALTER COLUMN quantity TYPE NUMERIC;
+ALTER TABLE public.pav_processes ADD COLUMN IF NOT EXISTS inquirer_pm_number TEXT;
 
 -- Permissões (RLS)
 ALTER TABLE public.materials ENABLE ROW LEVEL SECURITY;
@@ -207,7 +209,7 @@ CREATE POLICY "Public Access Schedules" ON public.vehicle_schedules FOR ALL USIN
 DROP POLICY IF EXISTS "Public Access Substitutions" ON public.fleet_substitutions;
 CREATE POLICY "Public Access Substitutions" ON public.fleet_substitutions FOR ALL USING (true) WITH CHECK (true);
 
--- Trigger de Estoque (Funciona igual para NUMERIC)
+-- Trigger de Estoque
 CREATE OR REPLACE FUNCTION handle_inventory_update() RETURNS TRIGGER AS $$
 BEGIN
     IF (TG_OP = 'DELETE' OR TG_OP = 'UPDATE') THEN
@@ -260,7 +262,7 @@ FOR EACH ROW EXECUTE FUNCTION handle_inventory_update();
 
         <div className="bg-blue-900/30 border border-blue-500/30 p-4 rounded mb-6">
             <h3 className="font-bold text-blue-300 mb-2">Instruções Importantes:</h3>
-            <p className="text-sm text-gray-300 mb-2">Foi adicionado suporte a valores fracionados (Ex: 1,5). Se você já tem o sistema funcionando, execute o SQL novamente para aplicar as mudanças de tipo de coluna.</p>
+            <p className="text-sm text-gray-300 mb-2">Foi adicionado o suporte ao Nº PM do Encarregado no controle de PAV. Se você já tem o sistema funcionando, execute o SQL novamente para aplicar a mudança.</p>
             <ol className="list-decimal list-inside text-gray-300 space-y-1 text-sm">
                 <li>Copie o código SQL abaixo.</li>
                 <li>Vá até o painel do Supabase do seu projeto ({'>'} SQL Editor).</li>
