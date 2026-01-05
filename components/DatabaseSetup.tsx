@@ -1,6 +1,7 @@
 
 import React, { useState } from 'react';
-import { Copy, Check, Database, ArrowLeft } from 'lucide-react';
+import { Copy, Check, Database, ArrowLeft, RefreshCw, AlertTriangle } from 'lucide-react';
+import { checkConnection } from '../lib/supabase';
 
 interface DatabaseSetupProps {
   onBack?: () => void;
@@ -8,6 +9,8 @@ interface DatabaseSetupProps {
 
 export const DatabaseSetup: React.FC<DatabaseSetupProps> = ({ onBack }) => {
   const [copied, setCopied] = useState(false);
+  const [isChecking, setIsChecking] = useState(false);
+  const [testResult, setTestResult] = useState<'success' | 'fail' | null>(null);
 
   const sql = `
 -- =========================================================
@@ -242,6 +245,20 @@ FOR EACH ROW EXECUTE FUNCTION handle_inventory_update();
       setTimeout(() => setCopied(false), 2000);
   };
 
+  const testConnection = async () => {
+      setIsChecking(true);
+      setTestResult(null);
+      const isOk = await checkConnection();
+      if (isOk) {
+          setTestResult('success');
+          if (onBack) setTimeout(onBack, 1000);
+          else setTimeout(() => window.location.reload(), 1000);
+      } else {
+          setTestResult('fail');
+      }
+      setIsChecking(false);
+  };
+
   return (
     <div className="fixed inset-0 bg-gray-900 flex items-center justify-center p-4 z-50 text-white overflow-y-auto">
       <div className="bg-gray-800 p-8 rounded-lg max-w-4xl w-full shadow-2xl my-8 border border-gray-700 animate-fade-in">
@@ -250,7 +267,7 @@ FOR EACH ROW EXECUTE FUNCTION handle_inventory_update();
                 <Database className="text-blue-400" size={32} />
                 <div>
                     <h2 className="text-2xl font-bold text-white">Configuração do Banco de Dados</h2>
-                    <p className="text-gray-400 text-sm">Atualize o banco para incluir novos campos e tabelas.</p>
+                    <p className="text-gray-400 text-sm">Verifique a conexão ou atualize o esquema SQL.</p>
                 </div>
             </div>
             {onBack && (
@@ -260,14 +277,24 @@ FOR EACH ROW EXECUTE FUNCTION handle_inventory_update();
             )}
         </div>
 
-        <div className="bg-blue-900/30 border border-blue-500/30 p-4 rounded mb-6">
-            <h3 className="font-bold text-blue-300 mb-2">Instruções Importantes:</h3>
-            <p className="text-sm text-gray-300 mb-2">Foi adicionado o suporte ao Nº PM do Encarregado no controle de PAV. Se você já tem o sistema funcionando, execute o SQL novamente para aplicar a mudança.</p>
-            <ol className="list-decimal list-inside text-gray-300 space-y-1 text-sm">
-                <li>Copie o código SQL abaixo.</li>
-                <li>Vá até o painel do Supabase do seu projeto ({'>'} SQL Editor).</li>
-                <li>Cole o código e clique em <strong>Run</strong>.</li>
-            </ol>
+        <div className="bg-amber-900/30 border border-amber-500/30 p-4 rounded mb-6 flex items-start gap-3">
+            <AlertTriangle className="text-amber-500 shrink-0" size={24} />
+            <div>
+                <h3 className="font-bold text-amber-300 mb-1 uppercase text-sm">Atenção - Supabase Pausado?</h3>
+                <p className="text-xs text-gray-300">Se o seu projeto foi pausado por inatividade, ele pode levar até 2 minutos para voltar ao ar totalmente. Clique no botão abaixo para testar a conexão antes de mexer no SQL.</p>
+                
+                <button 
+                    onClick={testConnection}
+                    disabled={isChecking}
+                    className={`mt-3 flex items-center gap-2 px-4 py-2 rounded font-bold text-xs transition-all ${
+                        testResult === 'success' ? 'bg-green-600 text-white' : 
+                        testResult === 'fail' ? 'bg-red-600 text-white' : 'bg-amber-600 hover:bg-amber-700 text-white'
+                    }`}
+                >
+                    <RefreshCw size={14} className={isChecking ? 'animate-spin' : ''} />
+                    {isChecking ? 'TESTANDO...' : testResult === 'success' ? 'CONECTADO!' : testResult === 'fail' ? 'AINDA OFFLINE (TENTAR NOVAMENTE)' : 'TESTAR CONEXÃO AGORA'}
+                </button>
+            </div>
         </div>
         
         <div className="relative">
@@ -283,26 +310,18 @@ FOR EACH ROW EXECUTE FUNCTION handle_inventory_update();
                     {copied ? <><Check size={16} /> Copiado!</> : <><Copy size={16} /> Copiar SQL</>}
                 </button>
             </div>
-            <div className="bg-gray-950 p-4 rounded border border-gray-700 font-mono text-xs overflow-auto max-h-[400px] mb-6 select-all custom-scrollbar">
+            <div className="bg-gray-950 p-4 rounded border border-gray-700 font-mono text-xs overflow-auto max-h-[300px] mb-6 select-all custom-scrollbar">
                 <pre style={{ whiteSpace: 'pre-wrap' }}>{sql}</pre>
             </div>
         </div>
 
-        {onBack ? (
-            <button 
-                onClick={onBack}
-                className="w-full py-4 bg-gray-700 hover:bg-gray-600 rounded-lg font-bold text-lg transition shadow-lg"
-            >
-                Voltar ao Sistema
-            </button>
-        ) : (
-            <button 
-                onClick={() => window.location.reload()}
-                className="w-full py-4 bg-blue-600 hover:bg-blue-700 rounded-lg font-bold text-lg transition shadow-lg hover:shadow-blue-500/20"
-            >
-                Já executei o SQL, Tentar Novamente
-            </button>
-        )}
+        <button 
+            onClick={() => window.location.reload()}
+            className="w-full py-4 bg-gray-700 hover:bg-gray-600 rounded-lg font-bold text-lg transition shadow-lg flex items-center justify-center gap-3"
+        >
+            <RefreshCw size={24} />
+            Atualizar e Tentar Acesso
+        </button>
       </div>
     </div>
   );
