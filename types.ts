@@ -3,9 +3,9 @@ export interface Material {
   id: string;
   name: string;
   quantity: number;
-  unit?: string; // Unidade de medida (ex: Unidade, Litros, Kg)
+  unit?: string;
   min_quantity: number;
-  compatible_vehicles?: string; // Veículos compatíveis com o material
+  compatible_vehicles?: string;
   created_at?: string;
 }
 
@@ -17,14 +17,14 @@ export enum MovementType {
 export interface Movement {
   id: string;
   material_id: string;
-  material_name?: string; // Joined field
+  material_name?: string;
   type: MovementType;
   quantity: number;
-  requester?: string | null; // Agora opcional
-  vehicle_prefix?: string | null; // Agora opcional
+  requester?: string | null;
+  vehicle_prefix?: string | null;
   guide_number: string;
-  observation?: string; // Novo campo para motivo de erro/correção
-  created_at: string; // Acts as movement date
+  observation?: string;
+  created_at: string;
 }
 
 export interface Vehicle {
@@ -44,7 +44,7 @@ export interface PavProcess {
   reds_number: string;
   pav_number: string;
   inquirer: string;
-  inquirer_pm_number: string; // Novo campo
+  inquirer_pm_number: string;
   sent_to_inquirer: boolean;
   os_request_date: string | null;
   os_number: string;
@@ -58,8 +58,8 @@ export interface VehicleSchedule {
   vehicle_prefix: string;
   driver_name: string;
   reason: string;
-  start_time: string; // ISO String (Data + Hora)
-  end_time: string;   // ISO String (Data + Hora)
+  start_time: string;
+  end_time: string;
   observations: string;
   created_at: string;
 }
@@ -78,4 +78,17 @@ export interface FleetSubstitution {
   created_at: string;
 }
 
+export interface FuelRecord {
+  id: string;
+  vehicle_prefix: string;
+  vehicle_plate: string;
+  driver_name: string;
+  liters: number;
+  fuel_type: 'DIESEL' | 'GASOLINA' | 'ETANOL';
+  odometer: number;
+  fraction: string;
+  created_at: string;
+}
+
 export type Tab = 'inventory' | 'movements' | 'fleet' | 'setup';
+export type ModuleType = 'STOCK' | 'PAV' | 'SCHEDULE' | 'SUBSTITUTION' | 'FUEL' | null;
