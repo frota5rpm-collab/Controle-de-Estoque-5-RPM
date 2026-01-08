@@ -11,9 +11,9 @@ import { DashboardSelection } from './components/DashboardSelection';
 import { PavModule } from './components/PavModule';
 import { VehicleScheduleModule } from './components/VehicleScheduleModule';
 import { FleetSubstitutionModule } from './components/FleetSubstitutionModule';
-import { FuelModule } from './components/FuelModule';
-import { Tab, ModuleType } from './types';
+import { Tab } from './types';
 
+type ModuleType = 'STOCK' | 'PAV' | 'SCHEDULE' | 'SUBSTITUTION' | null;
 type ConnectionStatus = 'LOADING' | 'ONLINE' | 'OFFLINE_NETWORK' | 'OFFLINE_SQL' | 'OFFLINE_CONFIG';
 
 function App() {
@@ -25,7 +25,6 @@ function App() {
   
   const [session, setSession] = useState<any>(null);
   const [authLoading, setAuthLoading] = useState(true);
-  const [isPublicMode, setIsPublicMode] = useState(false);
 
   const verifyConnection = async () => {
     setIsRetrying(true);
@@ -42,14 +41,6 @@ function App() {
   };
 
   useEffect(() => {
-    // Verificar se é acesso público (URL: ?view=fuel)
-    const params = new URLSearchParams(window.location.search);
-    const view = params.get('view');
-    if (view === 'fuel' || view === 'combustivel') {
-      setIsPublicMode(true);
-      setCurrentModule('FUEL');
-    }
-
     verifyConnection();
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
@@ -68,18 +59,13 @@ function App() {
     setCurrentModule(null);
   };
 
-  if (authLoading && !isPublicMode) {
+  if (authLoading) {
      return (
         <div className="min-h-screen bg-[#958458] flex flex-col items-center justify-center gap-4">
             <div className="w-12 h-12 border-4 border-white border-t-transparent rounded-full animate-spin"></div>
             <div className="text-white font-bold text-xl animate-pulse uppercase tracking-widest">Sincronizando...</div>
         </div>
      );
-  }
-
-  // Se for modo público, ignoramos a verificação de sessão, mas limitamos os módulos
-  if (isPublicMode && currentModule === 'FUEL') {
-      return <FuelModule isPublic={true} />;
   }
 
   if (connStatus === 'OFFLINE_CONFIG') {
@@ -166,7 +152,6 @@ function App() {
   if (currentModule === 'SCHEDULE') return <VehicleScheduleModule onBack={() => setCurrentModule(null)} userEmail={userFullName} onLogout={handleLogout} />;
   if (currentModule === 'PAV') return <PavModule onBack={() => setCurrentModule(null)} userEmail={userFullName} onLogout={handleLogout} />;
   if (currentModule === 'SUBSTITUTION') return <FleetSubstitutionModule onBack={() => setCurrentModule(null)} userEmail={userFullName} onLogout={handleLogout} />;
-  if (currentModule === 'FUEL') return <FuelModule onBack={() => setCurrentModule(null)} userEmail={userFullName} onLogout={handleLogout} isPublic={false} />;
 
   const shieldUrl = "https://yaoebstgiagmrvlbozny.supabase.co/storage/v1/object/sign/Logo%20PMMG/ESCUDO%20PMMG.png?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV9mMjgyNzE5YS0xNjI0LTRiYTUtODk3MC1jNTc3ZDIzMTQ4YjUiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJMb2dvIFBNTUcvRVNDVURPIFBNTUcucG5nIiwiaWF0IjoxNzY1NDAzMzE0LCJleHAiOjIzOTYxMjMzMTR9.1uAuyEEDpwU_vmvKjnSJw0uYbcOIkB-vRpXRDU-Arss";
 

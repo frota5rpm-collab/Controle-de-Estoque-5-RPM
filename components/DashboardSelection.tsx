@@ -1,10 +1,9 @@
 
 import React from 'react';
-import { Package, Shield, LogOut, KeyRound, CalendarClock, RefreshCw, Droplets } from 'lucide-react';
-import { ModuleType } from '../types';
+import { Package, Shield, LogOut, KeyRound, CalendarClock, RefreshCw } from 'lucide-react';
 
 interface DashboardSelectionProps {
-  onSelectModule: (module: ModuleType) => void;
+  onSelectModule: (module: 'STOCK' | 'PAV' | 'SCHEDULE' | 'SUBSTITUTION') => void;
   userEmail: string;
   onLogout: () => void;
   onChangePassword: () => void;
@@ -55,22 +54,22 @@ export const DashboardSelection: React.FC<DashboardSelectionProps> = ({
           </p>
         </div>
 
-        {/* Grid de Opções - Ajustado para 5 itens em telas grandes */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
+        {/* Grid de Opções */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           
           {/* Cartão 1: Controle de Estoque */}
           <button 
             onClick={() => onSelectModule('STOCK')}
             className="group bg-[#fdfbf7] p-6 rounded-xl shadow-2xl border-t-8 border-[#3E3223] hover:scale-[1.02] transition-all duration-300 flex flex-col items-center text-center cursor-pointer"
           >
-            <div className="bg-[#3E3223]/10 p-4 rounded-full mb-4 group-hover:bg-[#3E3223]/20 transition-colors">
-              <Package size={32} className="text-[#3E3223]" />
+            <div className="bg-[#3E3223]/10 p-6 rounded-full mb-6 group-hover:bg-[#3E3223]/20 transition-colors">
+              <Package size={40} className="text-[#3E3223]" />
             </div>
-            <h2 className="text-lg font-bold text-[#3E3223] mb-2 group-hover:text-[#C5A059] transition-colors">
-              Estoque
+            <h2 className="text-xl font-bold text-[#3E3223] mb-3 group-hover:text-[#C5A059] transition-colors">
+              Controle de Estoque
             </h2>
-            <p className="text-gray-500 text-[10px] uppercase font-bold tracking-tighter">
-                Materiais e Insumos
+            <p className="text-gray-500 text-xs">
+                Controle de estoque e movimentação de materiais.
             </p>
           </button>
 
@@ -79,14 +78,14 @@ export const DashboardSelection: React.FC<DashboardSelectionProps> = ({
             onClick={() => onSelectModule('SCHEDULE')}
             className="group bg-[#fdfbf7] p-6 rounded-xl shadow-2xl border-t-8 border-[#C5A059] hover:scale-[1.02] transition-all duration-300 flex flex-col items-center text-center cursor-pointer"
           >
-            <div className="bg-[#C5A059]/10 p-4 rounded-full mb-4 group-hover:bg-[#C5A059]/20 transition-colors">
-              <CalendarClock size={32} className="text-[#C5A059]" />
+            <div className="bg-[#C5A059]/10 p-6 rounded-full mb-6 group-hover:bg-[#C5A059]/20 transition-colors">
+              <CalendarClock size={40} className="text-[#C5A059]" />
             </div>
-            <h2 className="text-lg font-bold text-[#3E3223] mb-2 group-hover:text-[#C5A059] transition-colors">
-              Agenda
+            <h2 className="text-xl font-bold text-[#3E3223] mb-3 group-hover:text-[#C5A059] transition-colors">
+              Agenda de Viatura
             </h2>
-            <p className="text-gray-500 text-[10px] uppercase font-bold tracking-tighter">
-                Empréstimo de Viaturas
+            <p className="text-gray-500 text-xs">
+                Agendamento/empréstimo de viaturas.
             </p>
           </button>
 
@@ -95,46 +94,30 @@ export const DashboardSelection: React.FC<DashboardSelectionProps> = ({
             onClick={() => onSelectModule('SUBSTITUTION')}
             className="group bg-[#fdfbf7] p-6 rounded-xl shadow-2xl border-t-8 border-[#556B2F] hover:scale-[1.02] transition-all duration-300 flex flex-col items-center text-center cursor-pointer"
           >
-            <div className="bg-[#556B2F]/10 p-4 rounded-full mb-4 group-hover:bg-[#556B2F]/20 transition-colors">
-              <RefreshCw size={32} className="text-[#556B2F]" />
+            <div className="bg-[#556B2F]/10 p-6 rounded-full mb-6 group-hover:bg-[#556B2F]/20 transition-colors">
+              <RefreshCw size={40} className="text-[#556B2F]" />
             </div>
-            <h2 className="text-lg font-bold text-[#3E3223] mb-2 group-hover:text-[#556B2F] transition-colors text-xs">
-              Substituição
+            <h2 className="text-xl font-bold text-[#3E3223] mb-3 group-hover:text-[#556B2F] transition-colors">
+              Substituição da Frota
             </h2>
-            <p className="text-gray-500 text-[10px] uppercase font-bold tracking-tighter">
-                Troca de Veículos
+            <p className="text-gray-500 text-xs">
+                Controle de viaturas (placa) indicadas para recebimento de novas viaturas.
             </p>
           </button>
 
-          {/* NOVO - Cartão 4: Controle de Combustível */}
-          <button 
-            onClick={() => onSelectModule('FUEL')}
-            className="group bg-[#fdfbf7] p-6 rounded-xl shadow-2xl border-t-8 border-[#3E3223] hover:scale-[1.02] transition-all duration-300 flex flex-col items-center text-center cursor-pointer"
-          >
-            <div className="bg-[#3E3223]/10 p-4 rounded-full mb-4 group-hover:bg-[#3E3223]/20 transition-colors">
-              <Droplets size={32} className="text-blue-600" />
-            </div>
-            <h2 className="text-lg font-bold text-[#3E3223] mb-2 group-hover:text-blue-600 transition-colors">
-              Combustível
-            </h2>
-            <p className="text-gray-500 text-[10px] uppercase font-bold tracking-tighter">
-                Controle de Abastecimento
-            </p>
-          </button>
-
-          {/* Cartão 5: Controle de PAV */}
+          {/* Cartão 4: Controle de PAV */}
           <button 
             onClick={() => onSelectModule('PAV')}
             className="group bg-[#fdfbf7] p-6 rounded-xl shadow-2xl border-t-8 border-[#3E3223] hover:scale-[1.02] transition-all duration-300 flex flex-col items-center text-center cursor-pointer"
           >
-            <div className="bg-[#3E3223]/10 p-4 rounded-full mb-4 group-hover:bg-[#3E3223]/20 transition-colors">
-              <Shield size={32} className="text-[#3E3223]" />
+            <div className="bg-[#3E3223]/10 p-6 rounded-full mb-6 group-hover:bg-[#3E3223]/20 transition-colors">
+              <Shield size={40} className="text-[#3E3223]" />
             </div>
-            <h2 className="text-lg font-bold text-[#3E3223] mb-2 group-hover:text-[#C5A059] transition-colors">
-              PAV
+            <h2 className="text-xl font-bold text-[#3E3223] mb-3 group-hover:text-[#C5A059] transition-colors">
+              Controle de PAV
             </h2>
-            <p className="text-gray-500 text-[10px] uppercase font-bold tracking-tighter">
-                Viaturas Locadas
+            <p className="text-gray-500 text-xs">
+                Controle de PAV de viaturas locadas.
             </p>
           </button>
 
