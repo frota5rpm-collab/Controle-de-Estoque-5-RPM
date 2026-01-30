@@ -2,16 +2,19 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { Material } from '../types';
-import { Edit, FileDown, FileUp, AlertTriangle, Search, ArrowUpDown, ArrowUp, ArrowDown, XCircle, Car } from 'lucide-react';
+import { Edit, FileDown, FileUp, AlertTriangle, Search, ArrowUpDown, ArrowUp, ArrowDown, XCircle, Car, Check, Filter } from 'lucide-react';
 import { exportToExcel, parseExcel } from '../utils/excel';
 
 type SortKey = 'name' | 'quantity' | 'status' | 'unit';
+type StatusType = 'NORMAL' | 'LOW' | 'NONE';
 
 export const InventoryTab: React.FC = () => {
   const [materials, setMaterials] = useState<Material[]>([]);
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [filter, setFilter] = useState<'ALL' | 'LOW' | 'NONE' | 'NORMAL'>('ALL');
+  
+  // Filtro múltiplo: agora um array de status selecionados
+  const [activeFilters, setActiveFilters] = useState<StatusType[]>(['NORMAL', 'LOW', 'NONE']);
   const [search, setSearch] = useState('');
   
   // Configuração de ordenação
@@ -54,12 +57,9 @@ export const InventoryTab: React.FC = () => {
 
   const handleSave = async () => {
     if (!formData.name) return;
-    
-    // Bloqueia inserção manual por aqui, permite apenas edição
     if (!isEditing || !isEditing.id) return;
 
     try {
-      // Atualiza nome, unidade e veículos compatíveis. Quantidade é via Movimentações.
       const { error } = await supabase
         .from('materials')
         .update({ 
@@ -83,8 +83,6 @@ export const InventoryTab: React.FC = () => {
     if (e.target.files && e.target.files[0]) {
       try {
         const data = await parseExcel(e.target.files[0]);
-        
-        // Função auxiliar para buscar chave ignorando maiúsculas/minúsculas
         const findValue = (row: any, searchKeys: string[]) => {
             const objectKeys = Object.keys(row);
             for (const searchKey of searchKeys) {
@@ -99,24 +97,21 @@ export const InventoryTab: React.FC = () => {
           quantity: Number(findValue(row, ['quantidade', 'qtd', 'quantity', 'saldo', 'quant']) || 0),
           unit: findValue(row, ['unidade', 'medida', 'unit', 'und', 'tipo']) || 'Unidade',
           compatible_vehicles: findValue(row, ['compatibilidade', 'veiculos', 'compativel']) || ''
-        })).filter(r => r.name); // Filtra linhas que tenham pelo menos nome
+        })).filter(r => r.name);
 
         if (formattedData.length > 0) {
           const { error } = await supabase.from('materials').insert(formattedData);
           if (error) throw error;
           alert(`${formattedData.length} itens importados com sucesso!`);
           fetchMaterials();
-        } else {
-          alert("Nenhum material encontrado no arquivo. Verifique se as colunas chamam 'Material' e 'Quantidade'.");
         }
       } catch (err: any) {
         alert(`Erro ao importar: ${err.message || 'Verifique o formato do arquivo.'}`);
-        console.error(err);
       }
     }
   };
 
-  const getStatus = (m: Material) => {
+  const getStatus = (m: Material): StatusType => {
     if (m.quantity <= 0) return 'NONE';
     if (m.quantity < 5) return 'LOW'; 
     return 'NORMAL';
@@ -130,6 +125,18 @@ export const InventoryTab: React.FC = () => {
     setSortConfig({ key, direction });
   };
 
+  const toggleFilter = (status: StatusType) => {
+    setActiveFilters(prev => {
+      if (prev.includes(status)) {
+        // Se já está incluído, remove (a menos que seja o último para não ficar vazio)
+        return prev.length > 1 ? prev.filter(s => s !== status) : prev;
+      } else {
+        // Se não está, adiciona
+        return [...prev, status];
+      }
+    });
+  };
+
   const renderSortIcon = (key: SortKey) => {
     if (sortConfig.key !== key) return <ArrowUpDown size={14} className="text-gray-400 opacity-50" />;
     return sortConfig.direction === 'ASC' 
@@ -140,7 +147,7 @@ export const InventoryTab: React.FC = () => {
   const filteredMaterials = materials
     .filter(m => {
       const status = getStatus(m);
-      const matchesFilter = filter === 'ALL' || status === filter;
+      const matchesFilter = activeFilters.includes(status);
       const matchesSearch = 
         m.name.toLowerCase().includes(search.toLowerCase()) || 
         (m.compatible_vehicles || '').toLowerCase().includes(search.toLowerCase());
@@ -173,28 +180,63 @@ export const InventoryTab: React.FC = () => {
   return (
     <div className="space-y-6">
       <div className="flex flex-col xl:flex-row justify-between items-center gap-4 bg-white p-4 rounded-lg shadow-sm border-l-4 border-pmmg-primary">
-        <div className="flex flex-col md:flex-row items-center gap-2 w-full xl:w-auto">
+        <div className="flex flex-col md:flex-row items-center gap-4 w-full xl:w-auto">
+          {/* BARRA DE BUSCA */}
           <div className="relative w-full md:w-64">
             <Search className="absolute left-2 top-2.5 h-4 w-4 text-gray-400" />
             <input
               type="text"
-              placeholder="Buscar material ou veículo compatível..."
+              placeholder="Buscar material ou veículo..."
               className="pl-8 pr-4 py-2 border rounded-md w-full focus:ring-2 focus:ring-pmmg-primary outline-none"
               value={search}
               onChange={e => setSearch(e.target.value)}
             />
           </div>
-          <div className="flex gap-2 w-full md:w-auto">
-            <select 
-              className="border p-2 rounded-md flex-1 md:flex-none focus:ring-2 focus:ring-pmmg-primary outline-none"
-              value={filter}
-              onChange={(e: any) => setFilter(e.target.value)}
+
+          {/* FILTROS MULTIPLOS (ESTILO CHIPS) */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex items-center gap-1.5 mr-1 text-gray-500 font-bold text-[10px] uppercase tracking-wider">
+              <Filter size={12} /> Exibir:
+            </div>
+            
+            <button 
+              onClick={() => toggleFilter('NORMAL')}
+              className={`px-3 py-1.5 rounded-full text-[10px] font-black uppercase transition-all flex items-center gap-1.5 border ${
+                activeFilters.includes('NORMAL') 
+                ? 'bg-green-100 text-green-800 border-green-300 shadow-sm' 
+                : 'bg-white text-gray-400 border-gray-200 grayscale opacity-60'
+              }`}
             >
-              <option value="ALL">Todos os Status</option>
-              <option value="NORMAL">Estoque Normal</option>
-              <option value="LOW">Estoque Baixo</option>
-              <option value="NONE">Sem Estoque</option>
-            </select>
+              <div className={`w-2 h-2 rounded-full ${activeFilters.includes('NORMAL') ? 'bg-green-600' : 'bg-gray-400'}`}></div>
+              Normal
+              {activeFilters.includes('NORMAL') && <Check size={10} />}
+            </button>
+
+            <button 
+              onClick={() => toggleFilter('LOW')}
+              className={`px-3 py-1.5 rounded-full text-[10px] font-black uppercase transition-all flex items-center gap-1.5 border ${
+                activeFilters.includes('LOW') 
+                ? 'bg-yellow-100 text-yellow-800 border-yellow-300 shadow-sm' 
+                : 'bg-white text-gray-400 border-gray-200 grayscale opacity-60'
+              }`}
+            >
+              <div className={`w-2 h-2 rounded-full ${activeFilters.includes('LOW') ? 'bg-yellow-600' : 'bg-gray-400'}`}></div>
+              Baixo
+              {activeFilters.includes('LOW') && <Check size={10} />}
+            </button>
+
+            <button 
+              onClick={() => toggleFilter('NONE')}
+              className={`px-3 py-1.5 rounded-full text-[10px] font-black uppercase transition-all flex items-center gap-1.5 border ${
+                activeFilters.includes('NONE') 
+                ? 'bg-red-100 text-red-800 border-red-300 shadow-sm' 
+                : 'bg-white text-gray-400 border-gray-200 grayscale opacity-60'
+              }`}
+            >
+              <div className={`w-2 h-2 rounded-full ${activeFilters.includes('NONE') ? 'bg-red-600' : 'bg-gray-400'}`}></div>
+              Sem Estoque
+              {activeFilters.includes('NONE') && <Check size={10} />}
+            </button>
           </div>
         </div>
         
@@ -231,7 +273,6 @@ export const InventoryTab: React.FC = () => {
                   className="w-full border p-2 rounded focus:ring-2 focus:ring-pmmg-primary outline-none" 
                   value={formData.name} 
                   onChange={e => setFormData({...formData, name: e.target.value})}
-                  autoFocus
                 />
               </div>
               <div>
@@ -241,40 +282,22 @@ export const InventoryTab: React.FC = () => {
                   className="w-full border p-2 rounded focus:ring-2 focus:ring-pmmg-primary outline-none" 
                   value={formData.unit} 
                   onChange={e => setFormData({...formData, unit: e.target.value})}
-                  placeholder="Ex: Unidade, Litros, Caixa, Kg..."
+                  placeholder="Ex: Unidade, Litros..."
                 />
               </div>
-              
-              {/* CAMPO DE VEÍCULOS COMPATÍVEIS */}
               <div>
-                <label className="block text-sm font-bold text-gray-700 mb-1">Veículos Compatíveis (Opcional)</label>
+                <label className="block text-sm font-bold text-gray-700 mb-1">Veículos Compatíveis</label>
                 <input 
                   type="text" 
                   className="w-full border p-2 rounded focus:ring-2 focus:ring-pmmg-primary outline-none" 
                   value={formData.compatible_vehicles || ''} 
                   onChange={e => setFormData({...formData, compatible_vehicles: e.target.value})}
-                  placeholder="Ex: L200, Duster, Palio..."
                 />
-              </div>
-
-              <div>
-                <label className="block text-sm font-bold text-gray-700 mb-1">
-                  Quantidade
-                  <span className="text-xs text-red-500 ml-2 font-normal">(Bloqueado na edição)</span>
-                </label>
-                <input 
-                  type="number" 
-                  step="any"
-                  className="w-full border p-2 rounded bg-gray-100 text-gray-500 cursor-not-allowed"
-                  value={formData.quantity} 
-                  disabled={true} 
-                />
-                <p className="text-xs text-gray-500 mt-1">Para alterar a quantidade, realize uma Movimentação (Entrada/Saída).</p>
               </div>
             </div>
             <div className="flex justify-end gap-2 mt-6">
               <button 
-                onClick={() => { setIsEditing(null); }}
+                onClick={() => setIsEditing(null)}
                 className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded border transition-colors"
               >
                 Cancelar
@@ -294,28 +317,16 @@ export const InventoryTab: React.FC = () => {
         <table className="w-full text-left border-collapse">
           <thead className="bg-gray-100 text-gray-700 select-none border-b-2 border-pmmg-primary/20">
             <tr>
-              <th 
-                className="p-4 font-semibold border-b cursor-pointer hover:bg-gray-200 transition-colors"
-                onClick={() => handleSort('name')}
-              >
+              <th className="p-4 font-semibold border-b cursor-pointer hover:bg-gray-200" onClick={() => handleSort('name')}>
                 <div className="flex items-center gap-1">Material {renderSortIcon('name')}</div>
               </th>
-              <th 
-                className="p-4 font-semibold border-b text-center w-32 cursor-pointer hover:bg-gray-200 transition-colors"
-                onClick={() => handleSort('quantity')}
-              >
+              <th className="p-4 font-semibold border-b text-center w-32 cursor-pointer hover:bg-gray-200" onClick={() => handleSort('quantity')}>
                  <div className="flex items-center justify-center gap-1">Qtd {renderSortIcon('quantity')}</div>
               </th>
-              <th 
-                className="p-4 font-semibold border-b text-center cursor-pointer hover:bg-gray-200 transition-colors"
-                onClick={() => handleSort('unit')}
-              >
+              <th className="p-4 font-semibold border-b text-center cursor-pointer hover:bg-gray-200" onClick={() => handleSort('unit')}>
                 <div className="flex items-center justify-center gap-1">Unidade {renderSortIcon('unit')}</div>
               </th>
-              <th 
-                className="p-4 font-semibold border-b text-center w-40 cursor-pointer hover:bg-gray-200 transition-colors"
-                onClick={() => handleSort('status')}
-              >
+              <th className="p-4 font-semibold border-b text-center w-40 cursor-pointer hover:bg-gray-200" onClick={() => handleSort('status')}>
                  <div className="flex items-center justify-center gap-1">Status {renderSortIcon('status')}</div>
               </th>
               <th className="p-4 font-semibold border-b text-right w-24">Ações</th>
@@ -325,7 +336,7 @@ export const InventoryTab: React.FC = () => {
             {loading ? (
               <tr><td colSpan={5} className="p-8 text-center text-gray-500">Carregando estoque...</td></tr>
             ) : filteredMaterials.length === 0 ? (
-              <tr><td colSpan={5} className="p-8 text-center text-gray-500">Nenhum material encontrado.</td></tr>
+              <tr><td colSpan={5} className="p-8 text-center text-gray-500">Nenhum material encontrado com os filtros atuais.</td></tr>
             ) : (
               filteredMaterials.map(item => {
                 const status = getStatus(item);
@@ -333,7 +344,6 @@ export const InventoryTab: React.FC = () => {
                   <tr key={item.id} className="border-b hover:bg-amber-50/50 transition-colors">
                     <td className="p-4 font-medium text-gray-800">
                         <div>{item.name}</div>
-                        {/* Exibe Veículos Compatíveis na Tabela se houver */}
                         {item.compatible_vehicles && (
                             <div className="text-xs text-gray-500 mt-1 flex items-center gap-1">
                                 <Car size={12} className="text-pmmg-accent" /> 
@@ -345,18 +355,18 @@ export const InventoryTab: React.FC = () => {
                     <td className="p-4 text-center text-gray-600 text-sm">{item.unit || '-'}</td>
                     <td className="p-4 text-center">
                       {status === 'NONE' && (
-                        <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold bg-red-100 text-red-800 border border-red-200">
-                          <AlertTriangle size={12} /> SEM ESTOQUE
+                        <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-[10px] font-bold bg-red-100 text-red-800 border border-red-200 uppercase">
+                          <AlertTriangle size={12} /> Sem Estoque
                         </span>
                       )}
                       {status === 'LOW' && (
-                        <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold bg-yellow-100 text-yellow-800 border border-yellow-200">
-                          <AlertTriangle size={12} /> BAIXO
+                        <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-[10px] font-bold bg-yellow-100 text-yellow-800 border border-yellow-200 uppercase">
+                          <AlertTriangle size={12} /> Baixo
                         </span>
                       )}
                       {status === 'NORMAL' && (
-                        <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold bg-green-100 text-green-800 border border-green-200">
-                          NORMAL
+                        <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-[10px] font-bold bg-green-100 text-green-800 border border-green-200 uppercase">
+                          Normal
                         </span>
                       )}
                     </td>
@@ -365,7 +375,6 @@ export const InventoryTab: React.FC = () => {
                         <button 
                           onClick={() => { setIsEditing(item); setFormData({ ...item, compatible_vehicles: item.compatible_vehicles || '' }); }}
                           className="p-2 text-pmmg-primary hover:bg-pmmg-primary/10 rounded-full transition-colors"
-                          title="Editar"
                         >
                           <Edit size={18} />
                         </button>
