@@ -11,9 +11,8 @@ import { DashboardSelection } from './components/DashboardSelection';
 import { PavModule } from './components/PavModule';
 import { VehicleScheduleModule } from './components/VehicleScheduleModule';
 import { FleetSubstitutionModule } from './components/FleetSubstitutionModule';
-import { Tab } from './types';
+import { Tab, ModuleType } from './types';
 
-type ModuleType = 'STOCK' | 'PAV' | 'SCHEDULE' | 'SUBSTITUTION' | null;
 type ConnectionStatus = 'LOADING' | 'ONLINE' | 'OFFLINE_NETWORK' | 'OFFLINE_SQL' | 'OFFLINE_CONFIG';
 
 function App() {
@@ -68,61 +67,17 @@ function App() {
      );
   }
 
-  if (connStatus === 'OFFLINE_CONFIG') {
-      return (
-        <div className="min-h-screen bg-red-900 flex items-center justify-center p-4">
-            <div className="bg-white p-8 rounded-xl shadow-2xl max-w-md w-full text-center border-t-8 border-red-500">
-                <Settings size={48} className="text-red-600 mx-auto mb-4 animate-spin-slow" />
-                <h2 className="text-2xl font-bold text-gray-800 mb-2">Erro de Configuração</h2>
-                <p className="text-gray-600 mb-6 text-sm">
-                    A <strong>Chave API (Anon Key)</strong> ou a <strong>URL</strong> configuradas parecem estar incorretas.
-                    <br/><br/>
-                    Mensagem: <span className="text-red-600 font-bold">{errorMessage}</span>
-                </p>
-                <button 
-                    onClick={() => setConnStatus('ONLINE')}
-                    className="w-full py-3 bg-gray-800 text-white font-bold rounded hover:bg-black transition-all uppercase text-xs"
-                >
-                    Tentar Prosseguir Mesmo Assim
-                </button>
-            </div>
-        </div>
-      );
-  }
-
   if (connStatus === 'OFFLINE_NETWORK') {
       return (
           <div className="min-h-screen bg-[#3E3223] flex items-center justify-center p-4">
-              <div className="bg-white p-8 rounded-xl shadow-2xl max-w-md w-full text-center border-t-8 border-amber-500 animate-fade-in">
-                  <div className="bg-amber-100 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6">
-                      <WifiOff size={40} className="text-amber-600 animate-pulse" />
-                  </div>
-                  <h2 className="text-2xl font-bold text-gray-800 mb-2 font-serif">Falha de Comunicação</h2>
-                  <div className="text-gray-600 mb-6 text-sm text-left bg-gray-50 p-3 rounded border">
-                      <p className="font-bold text-amber-800 mb-2">O servidor não respondeu (Failed to Fetch).</p>
-                      <ul className="list-disc list-inside space-y-1 text-[11px]">
-                          <li>O projeto Supabase pode estar <strong>hibernando</strong> (leva 1-2 minutos para acordar).</li>
-                          <li>Sua rede/firewall pode estar bloqueando a conexão.</li>
-                          <li>Seu antivírus pode estar interferindo.</li>
-                      </ul>
-                  </div>
-                  <div className="space-y-3">
-                      <button 
-                          onClick={verifyConnection}
-                          disabled={isRetrying}
-                          className="w-full py-4 bg-[#C5A059] text-[#3E3223] font-black rounded-lg shadow-lg hover:bg-[#b08d4a] transition-all flex items-center justify-center gap-2 uppercase tracking-widest"
-                      >
-                          <RefreshCw size={20} className={isRetrying ? 'animate-spin' : ''} />
-                          {isRetrying ? 'Tentando acordar o banco...' : 'TENTAR CONEXÃO NOVAMENTE'}
-                      </button>
-                      
-                      <button 
-                        onClick={() => setConnStatus('ONLINE')}
-                        className="w-full py-2 text-gray-400 hover:text-[#3E3223] text-xs font-bold transition-colors flex items-center justify-center gap-2"
-                      >
-                        PULAR E IR PARA LOGIN <ArrowRight size={14} />
-                      </button>
-                  </div>
+              <div className="bg-white p-8 rounded-xl shadow-2xl max-w-md w-full text-center border-t-8 border-amber-500">
+                  <WifiOff size={40} className="text-amber-600 animate-pulse mx-auto mb-6" />
+                  <h2 className="text-2xl font-bold text-gray-800 mb-2">Falha de Conexão</h2>
+                  <p className="text-gray-600 mb-6 text-sm">{errorMessage}</p>
+                  <button onClick={verifyConnection} className="w-full py-4 bg-[#C5A059] text-[#3E3223] font-black rounded-lg shadow-lg hover:bg-[#b08d4a] transition-all flex items-center justify-center gap-2 uppercase tracking-widest">
+                      <RefreshCw size={20} className={isRetrying ? 'animate-spin' : ''} />
+                      {isRetrying ? 'Tentando...' : 'Reconectar'}
+                  </button>
               </div>
           </div>
       );
@@ -164,13 +119,13 @@ function App() {
                <Home size={20} />
                <span className="text-[10px] uppercase font-bold mt-1">Menu</span>
             </button>
-            <img src={shieldUrl} alt="Escudo PMMG" className="h-28 drop-shadow-xl" style={{ height: '7rem' }} />
+            <img src={shieldUrl} alt="Escudo PMMG" className="h-28 drop-shadow-xl" />
           </div>
           <div className="text-right">
             <h1 className="text-3xl md:text-4xl font-extrabold text-[#C5A059] font-serif uppercase tracking-tight">CONTROLE DE ESTOQUE</h1>
             <p className="text-lg font-bold text-[#C5A059] opacity-90 tracking-widest font-serif">FROTA 5ª RPM</p>
             <div className="mt-1 flex items-center justify-end gap-2">
-                <span className={`w-2 h-2 rounded-full ${connStatus === 'ONLINE' ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></span>
+                <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
                 <span className="text-sm font-semibold text-white/90">{userFullName}</span>
             </div>
           </div>
@@ -195,15 +150,6 @@ function App() {
           </div>
         </div>
       </main>
-      <style>{`
-        @keyframes spin-slow {
-            from { transform: rotate(0deg); }
-            to { transform: rotate(360deg); }
-        }
-        .animate-spin-slow {
-            animation: spin-slow 8s linear infinite;
-        }
-      `}</style>
     </div>
   );
 }

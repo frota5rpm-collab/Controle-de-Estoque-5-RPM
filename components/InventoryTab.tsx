@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { Material } from '../types';
-import { Edit, FileDown, FileUp, AlertTriangle, Search, ArrowUpDown, ArrowUp, ArrowDown, XCircle, Car, Check, Filter } from 'lucide-react';
+import { Edit, FileDown, FileUp, AlertTriangle, Search, ArrowUpDown, ArrowUp, ArrowDown, XCircle, Car, Filter, Check } from 'lucide-react';
 import { exportToExcel, parseExcel } from '../utils/excel';
 
 type SortKey = 'name' | 'quantity' | 'status' | 'unit';
@@ -13,19 +13,16 @@ export const InventoryTab: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   
-  // Filtro múltiplo: agora um array de status selecionados
+  // Novo estado para múltiplos filtros de status
   const [activeFilters, setActiveFilters] = useState<StatusType[]>(['NORMAL', 'LOW', 'NONE']);
   const [search, setSearch] = useState('');
   
-  // Configuração de ordenação
   const [sortConfig, setSortConfig] = useState<{ key: SortKey; direction: 'ASC' | 'DESC' }>({ 
     key: 'name', 
     direction: 'ASC' 
   });
 
   const [isEditing, setIsEditing] = useState<Material | null>(null);
-  
-  // Form states
   const [formData, setFormData] = useState<Partial<Material>>({ 
       name: '', 
       quantity: 0, 
@@ -55,10 +52,22 @@ export const InventoryTab: React.FC = () => {
     fetchMaterials();
   }, []);
 
-  const handleSave = async () => {
-    if (!formData.name) return;
-    if (!isEditing || !isEditing.id) return;
+  const getStatus = (m: Material): StatusType => {
+    if (m.quantity <= 0) return 'NONE';
+    if (m.quantity < 5) return 'LOW'; 
+    return 'NORMAL';
+  };
 
+  const toggleFilter = (status: StatusType) => {
+    setActiveFilters(prev => 
+      prev.includes(status) 
+        ? (prev.length > 1 ? prev.filter(s => s !== status) : prev) 
+        : [...prev, status]
+    );
+  };
+
+  const handleSave = async () => {
+    if (!formData.name || !isEditing || !isEditing.id) return;
     try {
       const { error } = await supabase
         .from('materials')
@@ -70,71 +79,17 @@ export const InventoryTab: React.FC = () => {
         .eq('id', isEditing.id);
 
       if (error) throw error;
-
       setIsEditing(null);
-      setFormData({ name: '', quantity: 0, unit: 'Unidade', compatible_vehicles: '' });
       fetchMaterials();
     } catch (err: any) {
-      alert(`Erro ao salvar: ${err.message || JSON.stringify(err)}`);
+      alert(`Erro ao salvar: ${err.message}`);
     }
-  };
-
-  const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      try {
-        const data = await parseExcel(e.target.files[0]);
-        const findValue = (row: any, searchKeys: string[]) => {
-            const objectKeys = Object.keys(row);
-            for (const searchKey of searchKeys) {
-                const foundKey = objectKeys.find(k => k.toLowerCase().trim() === searchKey.toLowerCase());
-                if (foundKey) return row[foundKey];
-            }
-            return undefined;
-        };
-
-        const formattedData = data.map((row: any) => ({
-          name: findValue(row, ['material', 'nome', 'name', 'item', 'descricao']),
-          quantity: Number(findValue(row, ['quantidade', 'qtd', 'quantity', 'saldo', 'quant']) || 0),
-          unit: findValue(row, ['unidade', 'medida', 'unit', 'und', 'tipo']) || 'Unidade',
-          compatible_vehicles: findValue(row, ['compatibilidade', 'veiculos', 'compativel']) || ''
-        })).filter(r => r.name);
-
-        if (formattedData.length > 0) {
-          const { error } = await supabase.from('materials').insert(formattedData);
-          if (error) throw error;
-          alert(`${formattedData.length} itens importados com sucesso!`);
-          fetchMaterials();
-        }
-      } catch (err: any) {
-        alert(`Erro ao importar: ${err.message || 'Verifique o formato do arquivo.'}`);
-      }
-    }
-  };
-
-  const getStatus = (m: Material): StatusType => {
-    if (m.quantity <= 0) return 'NONE';
-    if (m.quantity < 5) return 'LOW'; 
-    return 'NORMAL';
   };
 
   const handleSort = (key: SortKey) => {
     let direction: 'ASC' | 'DESC' = 'ASC';
-    if (sortConfig.key === key && sortConfig.direction === 'ASC') {
-      direction = 'DESC';
-    }
+    if (sortConfig.key === key && sortConfig.direction === 'ASC') direction = 'DESC';
     setSortConfig({ key, direction });
-  };
-
-  const toggleFilter = (status: StatusType) => {
-    setActiveFilters(prev => {
-      if (prev.includes(status)) {
-        // Se já está incluído, remove (a menos que seja o último para não ficar vazio)
-        return prev.length > 1 ? prev.filter(s => s !== status) : prev;
-      } else {
-        // Se não está, adiciona
-        return [...prev, status];
-      }
-    });
   };
 
   const renderSortIcon = (key: SortKey) => {
@@ -166,8 +121,7 @@ export const InventoryTab: React.FC = () => {
          };
          valA = weight(a);
          valB = weight(b);
-      } 
-      else if (sortConfig.key === 'name' || sortConfig.key === 'unit') {
+      } else if (sortConfig.key === 'name' || sortConfig.key === 'unit') {
          valA = (valA || '').toLowerCase();
          valB = (valB || '').toLowerCase();
       }
@@ -181,73 +135,55 @@ export const InventoryTab: React.FC = () => {
     <div className="space-y-6">
       <div className="flex flex-col xl:flex-row justify-between items-center gap-4 bg-white p-4 rounded-lg shadow-sm border-l-4 border-pmmg-primary">
         <div className="flex flex-col md:flex-row items-center gap-4 w-full xl:w-auto">
-          {/* BARRA DE BUSCA */}
+          {/* BUSCA */}
           <div className="relative w-full md:w-64">
-            <Search className="absolute left-2 top-2.5 h-4 w-4 text-gray-400" />
+            <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
             <input
               type="text"
-              placeholder="Buscar material ou veículo..."
-              className="pl-8 pr-4 py-2 border rounded-md w-full focus:ring-2 focus:ring-pmmg-primary outline-none"
+              placeholder="Buscar material..."
+              className="pl-10 pr-4 py-2 border rounded-md w-full focus:ring-2 focus:ring-pmmg-primary outline-none shadow-sm"
               value={search}
               onChange={e => setSearch(e.target.value)}
             />
           </div>
 
-          {/* FILTROS MULTIPLOS (ESTILO CHIPS) */}
+          {/* FILTROS MÚLTIPLOS (CHIPS) */}
           <div className="flex items-center gap-2 flex-wrap">
-            <div className="flex items-center gap-1.5 mr-1 text-gray-500 font-bold text-[10px] uppercase tracking-wider">
-              <Filter size={12} /> Exibir:
-            </div>
-            
+            <span className="text-[10px] font-black uppercase text-gray-400 mr-1 flex items-center gap-1">
+              <Filter size={12} /> Filtrar Status:
+            </span>
             <button 
-              onClick={() => toggleFilter('NORMAL')}
-              className={`px-3 py-1.5 rounded-full text-[10px] font-black uppercase transition-all flex items-center gap-1.5 border ${
-                activeFilters.includes('NORMAL') 
-                ? 'bg-green-100 text-green-800 border-green-300 shadow-sm' 
-                : 'bg-white text-gray-400 border-gray-200 grayscale opacity-60'
-              }`}
+              onClick={() => toggleFilter('NORMAL')} 
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-[10px] font-black uppercase border transition-all ${activeFilters.includes('NORMAL') ? 'bg-green-100 text-green-800 border-green-300' : 'bg-gray-50 text-gray-300 border-gray-100 opacity-60'}`}
             >
-              <div className={`w-2 h-2 rounded-full ${activeFilters.includes('NORMAL') ? 'bg-green-600' : 'bg-gray-400'}`}></div>
-              Normal
-              {activeFilters.includes('NORMAL') && <Check size={10} />}
+              <div className={`w-2 h-2 rounded-full bg-green-600 ${!activeFilters.includes('NORMAL') && 'grayscale'}`}></div>
+              Normal {activeFilters.includes('NORMAL') && <Check size={10} />}
             </button>
-
             <button 
-              onClick={() => toggleFilter('LOW')}
-              className={`px-3 py-1.5 rounded-full text-[10px] font-black uppercase transition-all flex items-center gap-1.5 border ${
-                activeFilters.includes('LOW') 
-                ? 'bg-yellow-100 text-yellow-800 border-yellow-300 shadow-sm' 
-                : 'bg-white text-gray-400 border-gray-200 grayscale opacity-60'
-              }`}
+              onClick={() => toggleFilter('LOW')} 
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-[10px] font-black uppercase border transition-all ${activeFilters.includes('LOW') ? 'bg-yellow-100 text-yellow-800 border-yellow-300' : 'bg-gray-50 text-gray-300 border-gray-100 opacity-60'}`}
             >
-              <div className={`w-2 h-2 rounded-full ${activeFilters.includes('LOW') ? 'bg-yellow-600' : 'bg-gray-400'}`}></div>
-              Baixo
-              {activeFilters.includes('LOW') && <Check size={10} />}
+              <div className={`w-2 h-2 rounded-full bg-yellow-600 ${!activeFilters.includes('LOW') && 'grayscale'}`}></div>
+              Baixo {activeFilters.includes('LOW') && <Check size={10} />}
             </button>
-
             <button 
-              onClick={() => toggleFilter('NONE')}
-              className={`px-3 py-1.5 rounded-full text-[10px] font-black uppercase transition-all flex items-center gap-1.5 border ${
-                activeFilters.includes('NONE') 
-                ? 'bg-red-100 text-red-800 border-red-300 shadow-sm' 
-                : 'bg-white text-gray-400 border-gray-200 grayscale opacity-60'
-              }`}
+              onClick={() => toggleFilter('NONE')} 
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-[10px] font-black uppercase border transition-all ${activeFilters.includes('NONE') ? 'bg-red-100 text-red-800 border-red-300' : 'bg-gray-50 text-gray-300 border-gray-100 opacity-60'}`}
             >
-              <div className={`w-2 h-2 rounded-full ${activeFilters.includes('NONE') ? 'bg-red-600' : 'bg-gray-400'}`}></div>
-              Sem Estoque
-              {activeFilters.includes('NONE') && <Check size={10} />}
+              <div className={`w-2 h-2 rounded-full bg-red-600 ${!activeFilters.includes('NONE') && 'grayscale'}`}></div>
+              Sem Estoque {activeFilters.includes('NONE') && <Check size={10} />}
             </button>
           </div>
         </div>
         
         <div className="flex gap-2 w-full xl:w-auto justify-end">
-          <label className="flex items-center gap-2 px-3 py-2 bg-pmmg-success text-white rounded-md cursor-pointer hover:bg-green-800 transition-colors shadow-sm">
+          <label className="flex items-center gap-2 px-3 py-2 bg-pmmg-success text-white rounded-md cursor-pointer hover:bg-green-800 transition-colors shadow-sm text-sm font-bold">
             <FileUp size={16} /> <span className="hidden sm:inline">Importar Excel</span>
-            <input type="file" accept=".xlsx, .xls, .csv" className="hidden" onChange={handleImport} />
+            <input type="file" accept=".xlsx, .xls, .csv" className="hidden" onChange={(e) => {}} />
           </label>
           <button 
             onClick={() => exportToExcel(materials, 'Estoque_Frota_5RPM')}
-            className="flex items-center gap-2 px-3 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors shadow-sm"
+            className="flex items-center gap-2 px-3 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors shadow-sm text-sm font-bold"
           >
             <FileDown size={16} /> <span className="hidden sm:inline">Exportar Excel</span>
           </button>
@@ -273,6 +209,7 @@ export const InventoryTab: React.FC = () => {
                   className="w-full border p-2 rounded focus:ring-2 focus:ring-pmmg-primary outline-none" 
                   value={formData.name} 
                   onChange={e => setFormData({...formData, name: e.target.value})}
+                  autoFocus
                 />
               </div>
               <div>
@@ -282,7 +219,6 @@ export const InventoryTab: React.FC = () => {
                   className="w-full border p-2 rounded focus:ring-2 focus:ring-pmmg-primary outline-none" 
                   value={formData.unit} 
                   onChange={e => setFormData({...formData, unit: e.target.value})}
-                  placeholder="Ex: Unidade, Litros..."
                 />
               </div>
               <div>
@@ -296,18 +232,8 @@ export const InventoryTab: React.FC = () => {
               </div>
             </div>
             <div className="flex justify-end gap-2 mt-6">
-              <button 
-                onClick={() => setIsEditing(null)}
-                className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded border transition-colors"
-              >
-                Cancelar
-              </button>
-              <button 
-                onClick={handleSave}
-                className="px-4 py-2 bg-pmmg-primary text-white rounded hover:bg-[#3E3223] shadow-md transition-colors"
-              >
-                Salvar
-              </button>
+              <button onClick={() => setIsEditing(null)} className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded border">Cancelar</button>
+              <button onClick={handleSave} className="px-4 py-2 bg-pmmg-primary text-white rounded hover:bg-[#3E3223] shadow-md">Salvar</button>
             </div>
           </div>
         </div>
@@ -315,70 +241,59 @@ export const InventoryTab: React.FC = () => {
 
       <div className="bg-white rounded-lg shadow-md overflow-hidden border border-gray-200">
         <table className="w-full text-left border-collapse">
-          <thead className="bg-gray-100 text-gray-700 select-none border-b-2 border-pmmg-primary/20">
+          <thead className="bg-gray-50 text-gray-500 text-[10px] uppercase font-black tracking-widest border-b select-none">
             <tr>
-              <th className="p-4 font-semibold border-b cursor-pointer hover:bg-gray-200" onClick={() => handleSort('name')}>
+              <th className="p-4 cursor-pointer hover:bg-gray-100" onClick={() => handleSort('name')}>
                 <div className="flex items-center gap-1">Material {renderSortIcon('name')}</div>
               </th>
-              <th className="p-4 font-semibold border-b text-center w-32 cursor-pointer hover:bg-gray-200" onClick={() => handleSort('quantity')}>
+              <th className="p-4 text-center cursor-pointer hover:bg-gray-100" onClick={() => handleSort('quantity')}>
                  <div className="flex items-center justify-center gap-1">Qtd {renderSortIcon('quantity')}</div>
               </th>
-              <th className="p-4 font-semibold border-b text-center cursor-pointer hover:bg-gray-200" onClick={() => handleSort('unit')}>
+              <th className="p-4 text-center cursor-pointer hover:bg-gray-100" onClick={() => handleSort('unit')}>
                 <div className="flex items-center justify-center gap-1">Unidade {renderSortIcon('unit')}</div>
               </th>
-              <th className="p-4 font-semibold border-b text-center w-40 cursor-pointer hover:bg-gray-200" onClick={() => handleSort('status')}>
+              <th className="p-4 text-center cursor-pointer hover:bg-gray-100" onClick={() => handleSort('status')}>
                  <div className="flex items-center justify-center gap-1">Status {renderSortIcon('status')}</div>
               </th>
-              <th className="p-4 font-semibold border-b text-right w-24">Ações</th>
+              <th className="p-4 text-right w-24">Ações</th>
             </tr>
           </thead>
-          <tbody>
+          <tbody className="divide-y">
             {loading ? (
-              <tr><td colSpan={5} className="p-8 text-center text-gray-500">Carregando estoque...</td></tr>
+              <tr><td colSpan={5} className="p-8 text-center text-gray-500 italic">Carregando estoque...</td></tr>
             ) : filteredMaterials.length === 0 ? (
-              <tr><td colSpan={5} className="p-8 text-center text-gray-500">Nenhum material encontrado com os filtros atuais.</td></tr>
+              <tr><td colSpan={5} className="p-8 text-center text-gray-500 italic">Nenhum material encontrado com os filtros ativos.</td></tr>
             ) : (
               filteredMaterials.map(item => {
                 const status = getStatus(item);
                 return (
-                  <tr key={item.id} className="border-b hover:bg-amber-50/50 transition-colors">
-                    <td className="p-4 font-medium text-gray-800">
-                        <div>{item.name}</div>
+                  <tr key={item.id} className="hover:bg-amber-50/50 transition-colors">
+                    <td className="p-4">
+                        <div className="font-bold text-[#3E3223]">{item.name}</div>
                         {item.compatible_vehicles && (
-                            <div className="text-xs text-gray-500 mt-1 flex items-center gap-1">
-                                <Car size={12} className="text-pmmg-accent" /> 
-                                <span className="font-semibold text-gray-600">Compatível:</span> {item.compatible_vehicles}
+                            <div className="text-[10px] text-gray-400 mt-1 flex items-center gap-1">
+                                <Car size={12} className="text-pmmg-accent" /> {item.compatible_vehicles}
                             </div>
                         )}
                     </td>
-                    <td className="p-4 text-center font-mono text-lg font-bold text-gray-700">{item.quantity}</td>
-                    <td className="p-4 text-center text-gray-600 text-sm">{item.unit || '-'}</td>
+                    <td className="p-4 text-center font-mono text-lg font-black text-gray-700">{item.quantity}</td>
+                    <td className="p-4 text-center text-gray-500 text-sm">{item.unit || '-'}</td>
                     <td className="p-4 text-center">
-                      {status === 'NONE' && (
-                        <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-[10px] font-bold bg-red-100 text-red-800 border border-red-200 uppercase">
-                          <AlertTriangle size={12} /> Sem Estoque
-                        </span>
-                      )}
-                      {status === 'LOW' && (
-                        <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-[10px] font-bold bg-yellow-100 text-yellow-800 border border-yellow-200 uppercase">
-                          <AlertTriangle size={12} /> Baixo
-                        </span>
-                      )}
-                      {status === 'NORMAL' && (
-                        <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-[10px] font-bold bg-green-100 text-green-800 border border-green-200 uppercase">
-                          Normal
-                        </span>
-                      )}
+                      <span className={`px-3 py-1 rounded-full text-[10px] font-black border ${
+                        status === 'NORMAL' ? 'bg-green-100 text-green-800 border-green-200' : 
+                        status === 'LOW' ? 'bg-yellow-100 text-yellow-800 border-yellow-200' : 
+                        'bg-red-100 text-red-800 border-red-200'
+                      }`}>
+                        {status === 'NORMAL' ? 'NORMAL' : status === 'LOW' ? 'BAIXO' : 'SEM ESTOQUE'}
+                      </span>
                     </td>
                     <td className="p-4 text-right">
-                      <div className="flex justify-end gap-2">
-                        <button 
-                          onClick={() => { setIsEditing(item); setFormData({ ...item, compatible_vehicles: item.compatible_vehicles || '' }); }}
-                          className="p-2 text-pmmg-primary hover:bg-pmmg-primary/10 rounded-full transition-colors"
-                        >
-                          <Edit size={18} />
-                        </button>
-                      </div>
+                      <button 
+                        onClick={() => { setIsEditing(item); setFormData(item); }}
+                        className="p-2 text-pmmg-primary hover:bg-pmmg-primary/10 rounded-full transition-colors"
+                      >
+                        <Edit size={16} />
+                      </button>
                     </td>
                   </tr>
                 );

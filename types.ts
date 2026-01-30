@@ -79,3 +79,4 @@ export interface FleetSubstitution {
 }
 
 export type Tab = 'inventory' | 'movements' | 'fleet' | 'setup';
+export type ModuleType = 'STOCK' | 'PAV' | 'SCHEDULE' | 'SUBSTITUTION' | null;

@@ -39,7 +39,6 @@ export const LoginScreen: React.FC<LoginScreenProps> = () => {
 
     try {
       if (mode === 'LOGIN') {
-        // Busca o perfil para obter o e-mail associado ao PM
         const { data: profile, error: profileError } = await supabase
             .from('profiles')
             .select('email')
@@ -49,16 +48,15 @@ export const LoginScreen: React.FC<LoginScreenProps> = () => {
         if (profileError) {
             console.error("Erro ao buscar perfil:", profileError);
             const errorText = getErrorMessage(profileError);
-            
             if (isNetworkError(profileError)) {
-                throw new Error(`Sem conexão com o banco. O servidor pode estar hibernando (aguarde 1 min) ou bloqueado. Erro: ${errorText}`);
+                throw new Error(`Sem conexão com o banco. O servidor pode estar hibernando (aguarde 1 min). Erro: ${errorText}`);
             }
             throw new Error(`Erro ao validar PM: ${errorText}`);
         }
 
         if (!profile) {
             setMessage({ 
-              text: "Nº PM não encontrado. Verifique se as tabelas foram criadas ou realize um novo cadastro.", 
+              text: "Nº PM não encontrado. Realize um novo cadastro.", 
               type: 'warning' 
             });
             setLoading(false);
@@ -77,28 +75,17 @@ export const LoginScreen: React.FC<LoginScreenProps> = () => {
             }
             throw new Error(loginMsg);
         }
-
       } else if (mode === 'REGISTER') {
         if (sectionCode !== ACCESS_CODE) throw new Error("Código de acesso da seção incorreto.");
         if (password.length < 6) throw new Error("A senha deve ter no mínimo 6 caracteres.");
         
-        const { data: authData, error: authError } = await supabase.auth.signUp({
+        const { error: authError } = await supabase.auth.signUp({
           email: realEmail,
           password: password,
-          options: { 
-              data: { 
-                  full_name: fullName.toUpperCase(), 
-                  pm_number: cleanPm 
-              } 
-          }
+          options: { data: { full_name: fullName.toUpperCase(), pm_number: cleanPm } }
         });
-
         if (authError) throw new Error(getErrorMessage(authError));
-
-        setMessage({ 
-            text: "Cadastro realizado! Agora tente fazer o login com seu Nº PM.", 
-            type: 'success' 
-        });
+        setMessage({ text: "Cadastro realizado! Agora tente fazer o login.", type: 'success' });
         setMode('LOGIN');
       } else if (mode === 'RECOVERY') {
           if (sectionCode !== ACCESS_CODE) throw new Error("Código Mestre da Seção incorreto.");
@@ -111,9 +98,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = () => {
           setMessage({ text: "Senha redefinida com sucesso!", type: 'success' });
           setMode('LOGIN');
       }
-
     } catch (error: any) {
-      console.error("ERRO DE AUTENTICAÇÃO:", error);
       setMessage({ text: getErrorMessage(error), type: 'error' });
     } finally {
       setLoading(false);
@@ -164,9 +149,9 @@ export const LoginScreen: React.FC<LoginScreenProps> = () => {
                     />
                   </div>
                   <div>
-                    <label className="block text-[10px] font-black text-gray-600 mb-1 uppercase tracking-widest">E-mail Pessoal</label>
+                    <label className="block text-[10px] font-black text-gray-600 mb-1 uppercase tracking-widest">E-mail</label>
                     <input
-                        type="email" required placeholder="E-MAIL PESSOAL"
+                        type="email" required placeholder="E-MAIL"
                         className="w-full px-4 py-2.5 border rounded-md focus:ring-2 focus:ring-[#C5A059] outline-none text-sm"
                         value={realEmail}
                         onChange={(e) => setRealEmail(e.target.value)}
@@ -177,10 +162,10 @@ export const LoginScreen: React.FC<LoginScreenProps> = () => {
 
           {(mode === 'REGISTER' || mode === 'RECOVERY') && (
               <div className="bg-amber-50 p-4 rounded border border-amber-200 animate-fade-in">
-                  <label className="block text-[10px] font-black text-amber-800 mb-1 uppercase tracking-tighter">Código Mestre da Seção</label>
+                  <label className="block text-[10px] font-black text-amber-800 mb-1 uppercase tracking-tighter">Código Mestre</label>
                   <input
                       type="text" required placeholder="FROTA..."
-                      className="w-full px-4 py-2 border border-amber-300 rounded focus:ring-1 focus:ring-amber-500 outline-none uppercase font-bold text-sm bg-white"
+                      className="w-full px-4 py-2 border border-amber-300 rounded focus:ring-1 focus:ring-amber-500 outline-none uppercase font-bold text-sm"
                       value={sectionCode}
                       onChange={(e) => setSectionCode(e.target.value.toUpperCase())}
                   />
@@ -206,24 +191,24 @@ export const LoginScreen: React.FC<LoginScreenProps> = () => {
           </div>
 
           {message && (
-            <div className={`p-4 rounded-lg text-xs font-bold border flex items-start gap-3 animate-shake ${
+            <div className={`p-4 rounded-lg text-xs font-bold border flex items-start gap-3 ${
                 message.type === 'error' ? 'bg-red-50 text-red-800 border-red-200' : 
                 message.type === 'warning' ? 'bg-amber-50 text-amber-800 border-amber-200' :
                 'bg-green-50 text-green-800 border-green-200'
             }`}>
-              {message.type === 'error' ? <XCircle size={16} className="shrink-0" /> : message.type === 'warning' ? <AlertTriangle size={16} className="shrink-0" /> : <CheckCircle size={16} className="shrink-0" />}
+              {message.type === 'error' ? <XCircle size={16} /> : message.type === 'warning' ? <AlertTriangle size={16} /> : <CheckCircle size={16} />}
               <span>{message.text}</span>
             </div>
           )}
 
           <button
             type="submit" disabled={loading}
-            className={`w-full text-white font-black py-4 rounded-lg shadow-xl transition-all flex items-center justify-center gap-3 uppercase tracking-widest ${
+            className={`w-full text-white font-black py-4 rounded-lg shadow-xl flex items-center justify-center gap-3 uppercase tracking-widest transition-all ${
                 loading ? 'bg-gray-400 cursor-not-allowed' : 'bg-[#3E3223] hover:bg-[#2a2218] active:scale-95'
             }`}
           >
             {loading ? <RefreshCw className="animate-spin" /> : <LogIn size={20} />}
-            {mode === 'LOGIN' ? 'Entrar' : mode === 'REGISTER' ? 'Cadastrar' : 'Redefinir'}
+            {mode === 'LOGIN' ? 'Acessar' : mode === 'REGISTER' ? 'Cadastrar' : 'Redefinir'}
           </button>
         </form>
 
@@ -235,7 +220,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = () => {
                     <button onClick={() => { setMode('RECOVERY'); setMessage(null); }} className="text-xs text-gray-400 hover:text-red-500 transition-colors">Esqueceu sua senha?</button>
                 </>
             ) : (
-                <button onClick={() => { setMode('LOGIN'); setMessage(null); }} className="text-sm font-bold text-gray-500 hover:text-[#3E3223]">Voltar para o Início</button>
+                <button onClick={() => { setMode('LOGIN'); setMessage(null); }} className="text-sm font-bold text-gray-500 hover:text-[#3E3223]">Voltar para o Login</button>
             )}
         </div>
       </div>
