@@ -54,7 +54,8 @@ export const isNetworkError = (error: any) => {
 export const checkConnection = async () => {
   try {
     // Teste simples na tabela profiles
-    const { data, error } = await supabase
+    // Capturamos status separadamente do erro para evitar erro de tipagem
+    const { error, status } = await supabase
       .from('profiles')
       .select('id')
       .limit(1);
@@ -74,7 +75,8 @@ export const checkConnection = async () => {
       }
 
       // Se for erro de permissão (RLS) ou JWT, o banco está ONLINE e respondendo
-      if (error.status === 401 || error.status === 403 || msg.includes("JWT") || msg.includes("ApiKey")) {
+      // Usamos a variável 'status' capturada da resposta, não da propriedade 'error.status'
+      if (status === 401 || status === 403 || msg.includes("JWT") || msg.includes("ApiKey")) {
           if (msg.includes("ApiKey") || msg.includes("invalid api key")) {
               return { ok: false, type: 'AUTH_CONFIG' as const, message: "Chave API Inválida." };
           }
