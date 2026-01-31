@@ -15,6 +15,7 @@ interface VehicleScheduleModuleProps {
 
 export const VehicleScheduleModule: React.FC<VehicleScheduleModuleProps> = ({ onBack, userEmail, onLogout }) => {
   const shieldUrl = "https://yaoebstgiagmrvlbozny.supabase.co/storage/v1/object/sign/Logo%20PMMG/ESCUDO%20PMMG.png?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV9mMjgyNzE5YS0xNjI0LTRiYTUtODk3MC1jNTc3ZDIzMTQ4YjUiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJMb2dvIFBNTUcvRVNDVURPIFBNTUcucG5nIiwiaWF0IjoxNzY1NDAzMzE0LCJleHAiOjIzOTYxMjMzMTR9.1uAuyEEDpwU_vmvKjnSJw0uYbcOIkB-vRpXRDU-Arss";
+  const currentYear = new Date().getFullYear();
 
   const [schedules, setSchedules] = useState<VehicleSchedule[]>([]);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
@@ -290,6 +291,9 @@ export const VehicleScheduleModule: React.FC<VehicleScheduleModuleProps> = ({ on
           <div className="text-right">
              <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight text-[#C5A059] font-serif uppercase">AGENDA DE VIATURA</h1>
              <p className="text-lg font-bold text-[#C5A059] opacity-90 tracking-widest font-serif">FROTA 5ª RPM</p>
+             <div className="mt-2 text-right">
+                <span className="text-sm font-bold text-white uppercase tracking-wider">Bem-vindo, {userEmail}</span>
+             </div>
           </div>
         </div>
         <div className="bg-[#4A3B2A]/90 backdrop-blur-sm text-white/90 py-2">
@@ -346,18 +350,18 @@ export const VehicleScheduleModule: React.FC<VehicleScheduleModuleProps> = ({ on
                 <button onClick={handleOpenNew} className="flex items-center gap-2 px-8 py-2.5 bg-[#C5A059] text-[#3E3223] font-black rounded shadow-md hover:bg-[#B08D4A] transition-all uppercase tracking-wider"><Plus size={20}/> Novo</button>
             </div>
 
-            {/* GRID DE AGENDAMENTOS COM LAYOUT RESTAURADO CONFORME IMAGEM */}
+            {/* GRID DE AGENDAMENTOS */}
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
                 {filteredSchedules.map(sch => (
                     <div key={sch.id} onClick={() => isSelectionMode && toggleSelection(sch.id)} className={`bg-white rounded-lg shadow-md p-4 border relative group cursor-pointer transition-all hover:shadow-lg ${selectedIds.includes(sch.id) ? 'ring-2 ring-orange-500 bg-orange-50 border-orange-500' : 'border-gray-100'}`}>
-                        {/* PREFIXO PADRONIZADO (MARROM ESCURO / DOURADO) */}
+                        {/* PREFIXO PADRONIZADO */}
                         <div className="flex items-center justify-between mb-4">
                             <div className="bg-[#3E3223] text-[#C5A059] font-bold px-4 py-1.5 rounded-md text-2xl flex items-center gap-3 shadow-sm">
                                 <Car size={24} /> {sch.vehicle_prefix}
                             </div>
                         </div>
                         
-                        {/* DATAS PADRONIZADAS (EM LINHAS SEPARADAS) */}
+                        {/* DATAS PADRONIZADAS */}
                         <div className="space-y-1 mb-4">
                             <div className="flex items-center gap-2 text-gray-700 font-bold text-lg">
                                 <Calendar size={20} className="text-[#C5A059]" /> 
@@ -370,13 +374,13 @@ export const VehicleScheduleModule: React.FC<VehicleScheduleModuleProps> = ({ on
                             </div>
                         </div>
 
-                        {/* MOTORISTA COM ÍCONE */}
+                        {/* MOTORISTA */}
                         <div className="flex items-center gap-2 text-gray-800 font-bold text-sm uppercase mb-4">
                             <User size={16} className="text-gray-400" />
                             {sch.driver_name}
                         </div>
 
-                        {/* BLOCO DE MOTIVO (FUNDO CINZA) */}
+                        {/* BLOCO DE MOTIVO */}
                         <div className="bg-gray-50 p-3 rounded-lg border border-gray-100">
                             <div className="text-[14px] text-gray-600">
                                 <span className="font-bold text-gray-700">Motivo:</span> <span className="italic uppercase ml-1">{sch.reason}</span>
@@ -392,6 +396,11 @@ export const VehicleScheduleModule: React.FC<VehicleScheduleModuleProps> = ({ on
                     </div>
                 ))}
             </div>
+        </div>
+
+        {/* Rodapé Dinâmico Institucional */}
+        <div className="mt-12 text-center text-white/50 text-xs font-bold uppercase tracking-widest drop-shadow-sm">
+            © {currentYear} Polícia Militar de Minas Gerais - 5ª RPM
         </div>
 
         {/* MODAL DE GERENCIAMENTO DE FROTA */}
@@ -444,7 +453,7 @@ export const VehicleScheduleModule: React.FC<VehicleScheduleModuleProps> = ({ on
             </div>
         )}
 
-        {/* MODAL DE AGENDAMENTO COM CABEÇALHO/RODAPÉ FIXOS E CORPO ROLÁVEL */}
+        {/* MODAL DE AGENDAMENTO */}
         {isModalOpen && (
             <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
                 <div className="bg-white rounded-lg shadow-2xl w-full max-w-lg border-t-8 border-[#C5A059] animate-fade-in flex flex-col max-h-[90vh]">

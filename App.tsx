@@ -113,43 +113,53 @@ function App() {
   return (
     <div className="min-h-screen bg-[#958458] font-sans flex flex-col">
       <header className="bg-[#3E3223] shadow-lg sticky top-0 z-40 border-b-4 border-[#C5A059]">
-        <div className="container mx-auto px-4 h-32 flex items-center justify-between">
-          <div className="flex items-center gap-4 py-2">
-            <button onClick={() => setCurrentModule(null)} className="hidden md:flex flex-col items-center justify-center text-[#C5A059] hover:text-white transition-colors bg-white/5 hover:bg-white/10 p-2 rounded-lg">
-               <Home size={20} />
+        <div className="container mx-auto px-4 min-h-[8rem] py-4 flex flex-row items-center justify-between gap-2">
+          <div className="flex items-center gap-2 md:gap-4 py-1">
+            <button 
+              onClick={() => setCurrentModule(null)} 
+              className="flex flex-col items-center justify-center text-[#C5A059] hover:text-white transition-colors bg-white/5 hover:bg-white/10 p-2 rounded-lg"
+              title="Voltar ao Menu Principal"
+            >
+               <Home size={22} />
                <span className="text-[10px] uppercase font-bold mt-1">Menu</span>
             </button>
-            <img src={shieldUrl} alt="Escudo PMMG" className="h-28 drop-shadow-xl" />
+            <img src={shieldUrl} alt="Escudo PMMG" className="h-20 md:h-28 drop-shadow-xl" />
           </div>
-          <div className="text-right">
-            <h1 className="text-3xl md:text-4xl font-extrabold text-[#C5A059] font-serif uppercase tracking-tight">CONTROLE DE ESTOQUE</h1>
-            <p className="text-lg font-bold text-[#C5A059] opacity-90 tracking-widest font-serif">FROTA 5ª RPM</p>
-            <div className="mt-1 flex items-center justify-end gap-2">
-                <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
-                <span className="text-sm font-semibold text-white/90">{userFullName}</span>
+          <div className="text-right flex-1">
+            <h1 className="text-xl md:text-3xl lg:text-4xl font-extrabold text-[#C5A059] font-serif uppercase tracking-tight leading-tight">CONTROLE DE ESTOQUE</h1>
+            <p className="text-sm md:text-lg font-bold text-[#C5A059] opacity-90 tracking-widest font-serif">FROTA 5ª RPM</p>
+            <div className="mt-1 flex items-center justify-end">
+                <span className="text-[10px] md:text-sm font-bold text-white uppercase tracking-wider leading-none">BEM-VINDO, {userFullName.toUpperCase()}</span>
             </div>
           </div>
         </div>
         <div className="bg-[#4A3B2A]/90 backdrop-blur-sm text-white/90">
-          <div className="container mx-auto px-4 flex justify-between items-center overflow-x-auto">
+          <div className="container mx-auto px-4 flex justify-between items-center overflow-x-auto custom-scrollbar-horizontal">
             <div className="flex gap-1">
-              <button onClick={() => setActiveTab('inventory')} className={`flex items-center gap-2 px-6 py-3 border-b-4 transition-all whitespace-nowrap font-bold uppercase tracking-wider text-sm ${activeTab === 'inventory' ? 'border-[#C5A059] text-[#C5A059] bg-black/20' : 'border-transparent hover:bg-white/5 text-white/70 hover:text-white'}`}><Package size={18} /> Estoque</button>
-              <button onClick={() => setActiveTab('movements')} className={`flex items-center gap-2 px-6 py-3 border-b-4 transition-all whitespace-nowrap font-bold uppercase tracking-wider text-sm ${activeTab === 'movements' ? 'border-[#C5A059] text-[#C5A059] bg-black/20' : 'border-transparent hover:bg-white/5 text-white/70 hover:text-white'}`}><History size={18} /> Movimentações</button>
-              <button onClick={() => setActiveTab('fleet')} className={`flex items-center gap-2 px-6 py-3 border-b-4 transition-all whitespace-nowrap font-bold uppercase tracking-wider text-sm ${activeTab === 'fleet' ? 'border-[#C5A059] text-[#C5A059] bg-black/20' : 'border-transparent hover:bg-white/5 text-white/70 hover:text-white'}`}><Truck size={18} /> Mapa Carga</button>
+              <button onClick={() => setActiveTab('inventory')} className={`flex items-center gap-2 px-4 md:px-6 py-3 border-b-4 transition-all whitespace-nowrap font-bold uppercase tracking-wider text-xs md:text-sm ${activeTab === 'inventory' ? 'border-[#C5A059] text-[#C5A059] bg-black/20' : 'border-transparent hover:bg-white/5 text-white/70 hover:text-white'}`}><Package size={18} /> Estoque</button>
+              <button onClick={() => setActiveTab('movements')} className={`flex items-center gap-2 px-4 md:px-6 py-3 border-b-4 transition-all whitespace-nowrap font-bold uppercase tracking-wider text-xs md:text-sm ${activeTab === 'movements' ? 'border-[#C5A059] text-[#C5A059] bg-black/20' : 'border-transparent hover:bg-white/5 text-white/70 hover:text-white'}`}><History size={18} /> Movimentações</button>
+              <button onClick={() => setActiveTab('fleet')} className={`flex items-center gap-2 px-4 md:px-6 py-3 border-b-4 transition-all whitespace-nowrap font-bold uppercase tracking-wider text-xs md:text-sm ${activeTab === 'fleet' ? 'border-[#C5A059] text-[#C5A059] bg-black/20' : 'border-transparent hover:bg-white/5 text-white/70 hover:text-white'}`}><Truck size={18} /> Mapa Carga</button>
             </div>
-            <button onClick={handleLogout} className="flex items-center gap-2 px-4 py-2 text-red-200 hover:text-red-100 hover:bg-red-900/30 rounded transition-colors text-sm font-semibold ml-4 whitespace-nowrap"><LogOut size={18} /> Sair</button>
+            <button onClick={handleLogout} className="flex items-center gap-2 px-4 py-2 text-red-200 hover:text-red-100 hover:bg-red-900/30 rounded transition-colors text-xs md:text-sm font-semibold ml-4 whitespace-nowrap"><LogOut size={16} /> <span className="hidden xs:inline">Sair</span></button>
           </div>
         </div>
       </header>
-      <main className="container mx-auto px-4 py-8 flex-grow">
+      <main className="container mx-auto px-2 md:px-4 py-4 md:py-8 flex-grow">
         <div className="bg-[#fdfbf7] rounded-xl shadow-2xl border border-[#d4c5a3] min-h-[500px]">
-          <div className="p-4 md:p-6">
+          <div className="p-2 md:p-6">
             {activeTab === 'inventory' && <InventoryTab />}
             {activeTab === 'movements' && <MovementsTab />}
             {activeTab === 'fleet' && <FleetTab />}
           </div>
         </div>
       </main>
+      <style>{`
+        .xs\\:inline { display: inline; }
+        @media (max-width: 400px) { .xs\\:inline { display: none; } }
+        .custom-scrollbar-horizontal::-webkit-scrollbar { height: 4px; }
+        .custom-scrollbar-horizontal::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar-horizontal::-webkit-scrollbar-thumb { background: #C5A059; border-radius: 10px; }
+      `}</style>
     </div>
   );
 }

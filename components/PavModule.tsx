@@ -336,8 +336,8 @@ export const PavModule: React.FC<PavModuleProps> = ({ onBack, userEmail, onLogou
                 FROTA 5ª RPM
              </p>
              <div className="text-right mt-1">
-                 <span className="text-sm font-semibold text-white/90">
-                    Bem-vindo, {userEmail}
+                 <span className="text-sm font-bold text-white uppercase tracking-wider">
+                    BEM-VINDO, {userEmail.toUpperCase()}
                  </span>
              </div>
           </div>

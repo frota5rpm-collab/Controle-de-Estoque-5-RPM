@@ -21,10 +21,10 @@ export const DashboardSelection: React.FC<DashboardSelectionProps> = ({
   return (
     <div className="min-h-screen bg-[#958458] flex flex-col items-center justify-center p-4 font-sans relative">
       <div className="absolute top-4 right-4 flex items-center gap-2 flex-wrap justify-end">
-        <button onClick={onChangePassword} className="flex items-center gap-2 text-white/80 hover:text-white transition-colors bg-black/20 hover:bg-black/30 px-4 py-2 rounded-full text-sm font-bold">
+        <button onClick={onChangePassword} className="flex items-center gap-2 text-white/80 hover:text-white transition-colors bg-black/20 hover:bg-black/30 px-4 py-2 rounded-full text-sm font-bold uppercase">
           <KeyRound size={16} /> Alterar Senha
         </button>
-        <button onClick={onLogout} className="flex items-center gap-2 text-red-200 hover:text-red-100 transition-colors bg-red-900/20 hover:bg-red-900/40 px-4 py-2 rounded-full text-sm font-bold">
+        <button onClick={onLogout} className="flex items-center gap-2 text-red-200 hover:text-red-100 transition-colors bg-red-900/20 hover:bg-red-900/40 px-4 py-2 rounded-full text-sm font-bold uppercase">
           <LogOut size={16} /> Sair
         </button>
       </div>
@@ -32,8 +32,8 @@ export const DashboardSelection: React.FC<DashboardSelectionProps> = ({
       <div className="w-full max-w-6xl mt-12 md:mt-0">
         <div className="text-center mb-10">
           <img src={shieldUrl} alt="Brasão PMMG" className="h-28 mx-auto mb-4 drop-shadow-xl filter brightness-110" />
-          <h1 className="text-3xl md:text-4xl font-extrabold text-white drop-shadow-md font-serif mb-2">Sistema de Gestão Frota 5ª RPM</h1>
-          <p className="text-white/90 text-lg font-medium">Bem-vindo, {userEmail}</p>
+          <h1 className="text-3xl md:text-4xl font-extrabold text-white drop-shadow-md font-serif mb-2 uppercase tracking-tight">SISTEMA DE GESTÃO FROTA 5ª RPM</h1>
+          <p className="text-white/90 text-lg font-bold uppercase tracking-wider">BEM-VINDO, {userEmail.toUpperCase()}</p>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -41,7 +41,7 @@ export const DashboardSelection: React.FC<DashboardSelectionProps> = ({
             <div className="bg-[#3E3223]/10 p-6 rounded-full mb-6 group-hover:bg-[#3E3223]/20 transition-colors">
               <Package size={40} className="text-[#3E3223]" />
             </div>
-            <h2 className="text-xl font-bold text-[#3E3223] mb-3 group-hover:text-[#C5A059]">Controle de Estoque</h2>
+            <h2 className="text-xl font-bold text-[#3E3223] mb-3 group-hover:text-[#C5A059] uppercase">Controle de Estoque</h2>
             <p className="text-gray-500 text-xs">Controle de estoque e movimentação de materiais.</p>
           </button>
 
@@ -49,7 +49,7 @@ export const DashboardSelection: React.FC<DashboardSelectionProps> = ({
             <div className="bg-[#C5A059]/10 p-6 rounded-full mb-6 group-hover:bg-[#C5A059]/20 transition-colors">
               <CalendarClock size={40} className="text-[#C5A059]" />
             </div>
-            <h2 className="text-xl font-bold text-[#3E3223] mb-3 group-hover:text-[#C5A059]">Agenda de Viatura</h2>
+            <h2 className="text-xl font-bold text-[#3E3223] mb-3 group-hover:text-[#C5A059] uppercase">Agenda de Viatura</h2>
             <p className="text-gray-500 text-xs">Agendamento/empréstimo de viaturas.</p>
           </button>
 
@@ -57,7 +57,7 @@ export const DashboardSelection: React.FC<DashboardSelectionProps> = ({
             <div className="bg-[#556B2F]/10 p-6 rounded-full mb-6 group-hover:bg-[#556B2F]/20 transition-colors">
               <RefreshCw size={40} className="text-[#556B2F]" />
             </div>
-            <h2 className="text-xl font-bold text-[#3E3223] mb-3 group-hover:text-[#556B2F]">Substituição da Frota</h2>
+            <h2 className="text-xl font-bold text-[#3E3223] mb-3 group-hover:text-[#556B2F] uppercase">Substituição da Frota</h2>
             <p className="text-gray-500 text-xs">Controle de viaturas (placas) indicadas para recebimento de novas viaturas.</p>
           </button>
 
@@ -65,11 +65,11 @@ export const DashboardSelection: React.FC<DashboardSelectionProps> = ({
             <div className="bg-[#3E3223]/10 p-6 rounded-full mb-6 group-hover:bg-[#3E3223]/20 transition-colors">
               <Shield size={40} className="text-[#3E3223]" />
             </div>
-            <h2 className="text-xl font-bold text-[#3E3223] mb-3 group-hover:text-[#C5A059]">Controle de PAV</h2>
+            <h2 className="text-xl font-bold text-[#3E3223] mb-3 group-hover:text-[#C5A059] uppercase">Controle de PAV</h2>
             <p className="text-gray-500 text-xs">Controle de PAV de viaturas locadas.</p>
           </button>
         </div>
-        <div className="mt-8 text-center text-white/40 text-xs">© {currentYear} PMMG - 5ª RPM</div>
+        <div className="mt-8 text-center text-white/40 text-xs uppercase">© {currentYear} PMMG - 5ª RPM</div>
       </div>
     </div>
   );

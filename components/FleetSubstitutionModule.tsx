@@ -5,6 +5,8 @@ import { supabase } from '../lib/supabase';
 import { FleetSubstitution } from '../types';
 import { exportToExcel } from '../utils/excel';
 import * as XLSX from 'xlsx';
+import { jsPDF } from "jspdf";
+import autoTable from "jspdf-autotable";
 
 interface FleetSubstitutionModuleProps {
   onBack: () => void;
@@ -146,6 +148,65 @@ export const FleetSubstitutionModule: React.FC<FleetSubstitutionModuleProps> = (
     }
   };
 
+  const handleExportExcel = () => {
+    const data = filteredItems.map(item => ({
+        'BGPM': item.received_bgpm || '-',
+        'Prefixo Recebido': item.received_prefix,
+        'Placa Recebida': item.received_plate,
+        'Modelo Recebido': item.received_model || '-',
+        'Município': item.received_city || '-',
+        'Unidade': item.received_unit || '-',
+        'Status': item.not_required ? 'NÃO NECESSÁRIO' : (item.indicated_prefix && item.indicated_plate ? 'CONCLUÍDO' : 'PENDENTE'),
+        'Prefixo Indicado': item.not_required ? 'N/A' : (item.indicated_prefix || '-'),
+        'Placa Indicada': item.not_required ? 'N/A' : (item.indicated_plate || '-')
+    }));
+    exportToExcel(data, 'Substituicao_Frota_5RPM');
+  };
+
+  const handleExportPDF = () => {
+      const doc = new jsPDF('landscape');
+      
+      // Cabeçalho
+      doc.setFontSize(18);
+      doc.setTextColor(62, 50, 35); // Cor Marrom
+      doc.text("RELATÓRIO DE SUBSTITUIÇÃO DE FROTA - 5ª RPM", 14, 15);
+      
+      doc.setFontSize(10);
+      doc.setTextColor(100);
+      doc.text(`Gerado em: ${new Date().toLocaleString('pt-BR')}`, 14, 22);
+
+      const tableData = filteredItems.map(item => [
+          item.received_bgpm || '-',
+          item.received_prefix,
+          item.received_plate,
+          item.received_city || '-',
+          item.received_unit || '-',
+          item.not_required ? 'N/A' : (item.indicated_prefix || 'Pendente'),
+          item.not_required ? 'N/A' : (item.indicated_plate || '-'),
+          item.not_required ? 'NÃO NECESSÁRIO' : (item.indicated_prefix && item.indicated_plate ? 'CONCLUÍDO' : 'PENDENTE')
+      ]);
+
+      autoTable(doc, {
+          startY: 28,
+          head: [['BGPM', 'PREF. REC', 'PLACA REC', 'MUNICÍPIO', 'UNIDADE', 'PREF. IND', 'PLACA IND', 'STATUS']],
+          body: tableData,
+          theme: 'striped',
+          headStyles: { 
+            fillColor: [62, 50, 35], 
+            textColor: [197, 160, 89], // Dourado
+            fontSize: 8,
+            fontStyle: 'bold'
+          },
+          styles: { fontSize: 8 },
+          columnStyles: {
+            0: { cellWidth: 20 },
+            7: { fontStyle: 'bold' }
+          }
+      });
+
+      doc.save("Substituicao_Frota_5RPM.pdf");
+  };
+
   const handleSave = async (force: boolean = false) => {
     const receivedPlate = formData.received_plate.toUpperCase().trim();
     const indicatedPlate = formData.indicated_plate.toUpperCase().trim();
@@ -274,7 +335,9 @@ export const FleetSubstitutionModule: React.FC<FleetSubstitutionModuleProps> = (
              <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight text-[#C5A059] font-serif uppercase">Substituição da Frota</h1>
              <p className="text-lg font-bold text-[#C5A059] opacity-90 tracking-widest font-serif">FROTA 5ª RPM</p>
              <div className="text-right mt-1">
-                 <span className="text-sm font-semibold text-white/90">Bem-vindo, {userEmail}</span>
+                 <span className="text-sm font-bold text-white uppercase tracking-wider">
+                    BEM-VINDO, {userEmail.toUpperCase()}
+                 </span>
              </div>
           </div>
         </div>
@@ -311,8 +374,11 @@ export const FleetSubstitutionModule: React.FC<FleetSubstitutionModuleProps> = (
                         <input type="text" placeholder="Buscar prefixo, placa ou BGPM..." className="w-full pl-10 pr-4 py-2 border rounded-md focus:ring-2 focus:ring-[#C5A059] outline-none shadow-sm" value={search} onChange={(e) => setSearch(e.target.value)} />
                     </div>
                     <div className="flex gap-2 w-full lg:w-auto justify-end flex-wrap">
-                        <label className="flex items-center gap-2 px-4 py-2 bg-[#556B2F] text-white rounded cursor-pointer hover:bg-[#435525] transition-colors shadow-sm font-bold whitespace-nowrap"><FileUp size={18} /> Importar<input type="file" accept=".xlsx, .xls, .csv" className="hidden" onChange={handleImport} /></label>
-                        <button onClick={() => openModal()} className="px-6 py-2 bg-[#C5A059] text-[#3E3223] font-bold rounded hover:bg-[#b08d4a] transition-colors shadow-sm flex items-center gap-2 whitespace-nowrap"><Plus size={20} /> Novo Registro</button>
+                        <button onClick={handleExportExcel} className="flex items-center gap-2 px-4 py-2 bg-[#00875A] text-white rounded font-bold text-sm hover:bg-[#006644] transition-colors shadow-sm"><FileDown size={18}/> Excel</button>
+                        <button onClick={handleExportPDF} className="flex items-center gap-2 px-4 py-2 bg-[#DE350B] text-white rounded font-bold text-sm hover:bg-[#BF2600] transition-colors shadow-sm"><FileText size={18}/> PDF</button>
+                        <div className="h-8 w-px bg-gray-300 mx-1 hidden lg:block"></div>
+                        <label className="flex items-center gap-2 px-4 py-2 bg-[#556B2F] text-white rounded cursor-pointer hover:bg-[#435525] transition-colors shadow-sm font-bold whitespace-nowrap text-sm"><FileUp size={18} /> Importar<input type="file" accept=".xlsx, .xls, .csv" className="hidden" onChange={handleImport} /></label>
+                        <button onClick={() => openModal()} className="px-6 py-2 bg-[#C5A059] text-[#3E3223] font-bold rounded hover:bg-[#b08d4a] transition-colors shadow-sm flex items-center gap-2 whitespace-nowrap text-sm"><Plus size={20} /> Novo Registro</button>
                     </div>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-2 bg-gray-50 p-3 rounded-lg border border-gray-200">
