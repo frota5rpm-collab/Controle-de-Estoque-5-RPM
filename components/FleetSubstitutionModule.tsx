@@ -292,7 +292,9 @@ export const FleetSubstitutionModule: React.FC<FleetSubstitutionModuleProps> = (
         const matchesSearch = 
             item.received_prefix.includes(search) || 
             item.received_plate.toLowerCase().includes(search.toLowerCase()) ||
-            (item.received_bgpm || '').toLowerCase().includes(search.toLowerCase());
+            (item.received_bgpm || '').toLowerCase().includes(search.toLowerCase()) ||
+            (item.indicated_prefix || '').toLowerCase().includes(search.toLowerCase()) ||
+            (item.indicated_plate || '').toLowerCase().includes(search.toLowerCase());
         const matchesCity = filterCity === 'ALL' || item.received_city === filterCity;
         const matchesUnit = filterUnit === 'ALL' || item.received_unit === filterUnit;
         const isCompleted = item.not_required || (item.indicated_prefix && item.indicated_plate);
@@ -486,7 +488,7 @@ export const FleetSubstitutionModule: React.FC<FleetSubstitutionModuleProps> = (
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                                 <div><label className="block text-xs font-black text-gray-500 uppercase mb-1">Prefixo *</label><input className="w-full border-2 border-green-100 p-2.5 rounded-lg focus:border-green-500 outline-none font-bold" value={formData.received_prefix} onChange={e => setFormData({...formData, received_prefix: e.target.value})} /></div>
                                 <div><label className="block text-xs font-black text-gray-500 uppercase mb-1">Placa *</label><input className="w-full border-2 border-green-100 p-2.5 rounded-lg focus:border-green-500 outline-none uppercase font-mono font-bold" value={formData.received_plate} onChange={e => setFormData({...formData, received_plate: e.target.value})} /></div>
-                                <div><label className="block text-xs font-black text-gray-500 uppercase mb-1">BGPM</label><input className="w-full border-2 border-green-100 p-2.5 rounded-lg focus:border-green-500 outline-none font-mono" value={formData.received_bgpm} onChange={e => setFormData({...formData, received_bgpm: e.target.value})} /></div>
+                                <div><label className="block text-xs font-black text-gray-500 uppercase mb-1">BGPM (n°/ano)</label><input className="w-full border-2 border-green-100 p-2.5 rounded-lg focus:border-green-500 outline-none font-mono" value={formData.received_bgpm} onChange={e => setFormData({...formData, received_bgpm: e.target.value})} /></div>
                                 <div><label className="block text-xs font-black text-gray-500 uppercase mb-1">Município</label><input className="w-full border-2 border-green-100 p-2.5 rounded-lg focus:border-green-500 outline-none font-semibold text-sm uppercase" value={formData.received_city} onChange={e => setFormData({...formData, received_city: e.target.value})} /></div>
                                 <div><label className="block text-xs font-black text-gray-500 uppercase mb-1">Unidade</label><input className="w-full border-2 border-green-100 p-2.5 rounded-lg focus:border-green-500 outline-none text-sm uppercase" value={formData.received_unit} onChange={e => setFormData({...formData, received_unit: e.target.value})} /></div>
                                 <div className="lg:col-span-3"><label className="block text-xs font-black text-gray-500 uppercase mb-1">Marca/Modelo Completo</label><input className="w-full border-2 border-green-100 p-2.5 rounded-lg focus:border-green-500 outline-none" value={formData.received_model} onChange={e => setFormData({...formData, received_model: e.target.value})} /></div>
