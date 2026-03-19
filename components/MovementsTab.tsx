@@ -154,24 +154,75 @@ export const MovementsTab: React.FC = () => {
           created_at: formData.created_at
       };
 
+      // 1. Buscar quantidade atual do material selecionado
+      const { data: material, error: matFetchError } = await supabase
+        .from('materials')
+        .select('quantity')
+        .eq('id', formData.material_id)
+        .single();
+
+      if (matFetchError) throw new Error("Erro ao buscar saldo do material: " + matFetchError.message);
+      
+      let newStockQuantity = material.quantity;
+
       if (isEditing) {
+        // Se estiver editando, precisamos reverter a movimentação antiga primeiro
+        const oldQty = isEditing.quantity;
+        const oldType = isEditing.type;
+
+        if (isEditing.material_id === formData.material_id) {
+            // Mesmo material: reverte o antigo e aplica o novo no mesmo saldo
+            // Reverte antigo
+            if (oldType === MovementType.ENTRY) newStockQuantity -= oldQty;
+            else newStockQuantity += oldQty;
+
+            // Aplica novo
+            if (formData.type === MovementType.ENTRY) newStockQuantity += formData.quantity;
+            else newStockQuantity -= formData.quantity;
+        } else {
+            // Material mudou: precisamos atualizar o material antigo e o novo separadamente
+            // 1. Atualizar material antigo (reverter)
+            const { data: oldMaterial } = await supabase
+                .from('materials')
+                .select('quantity')
+                .eq('id', isEditing.material_id)
+                .single();
+            
+            if (oldMaterial) {
+                let oldMatNewQty = oldMaterial.quantity + (oldType === MovementType.ENTRY ? -oldQty : oldQty);
+                await supabase.from('materials').update({ quantity: oldMatNewQty }).eq('id', isEditing.material_id);
+            }
+
+            // 2. Preparar saldo do novo material (aplicar novo)
+            if (formData.type === MovementType.ENTRY) newStockQuantity += formData.quantity;
+            else newStockQuantity -= formData.quantity;
+        }
+
+        // Atualizar a movimentação
         const { error } = await supabase
           .from('movements')
           .update(payload)
           .eq('id', isEditing.id);
           
         if (error) throw error;
-        alert("Movimentação atualizada.");
       } else {
+        // Nova movimentação: apenas aplica ao saldo atual
+        if (formData.type === MovementType.ENTRY) newStockQuantity += formData.quantity;
+        else newStockQuantity -= formData.quantity;
+
         const { error: movError } = await supabase.from('movements').insert([payload]);
-        if (movError) {
-             if (movError.message.includes("null value in column")) {
-                 throw new Error("O banco de dados recusou campos vazios. Execute o script SQL na ajuda para corrigir as permissões.");
-             }
-             throw movError;
-        }
+        if (movError) throw movError;
       }
 
+      // 2. Atualizar o saldo final no banco de dados
+      const { error: finalMatError } = await supabase
+        .from('materials')
+        .update({ quantity: newStockQuantity })
+        .eq('id', formData.material_id);
+
+      if (finalMatError) throw finalMatError;
+
+      alert(isEditing ? "Movimentação atualizada e estoque ajustado." : "Movimentação registrada e estoque atualizado.");
       setIsAdding(false);
       setIsEditing(null);
       setFormData(initialForm);
@@ -186,6 +237,28 @@ export const MovementsTab: React.FC = () => {
     if (!deletingId) return;
 
     try {
+      // 1. Buscar a movimentação para saber o que reverter no estoque
+      const movementToDelete = movements.find(m => m.id === deletingId);
+      if (!movementToDelete) throw new Error("Movimentação não encontrada.");
+
+      // 2. Buscar saldo atual do material
+      const { data: material } = await supabase
+        .from('materials')
+        .select('quantity')
+        .eq('id', movementToDelete.material_id)
+        .single();
+
+      if (material) {
+        // 3. Reverter o saldo
+        let revertedQty = material.quantity;
+        if (movementToDelete.type === MovementType.ENTRY) revertedQty -= movementToDelete.quantity;
+        else revertedQty += movementToDelete.quantity;
+
+        // 4. Atualizar material
+        await supabase.from('materials').update({ quantity: revertedQty }).eq('id', movementToDelete.material_id);
+      }
+
+      // 5. Excluir a movimentação
       const { error } = await supabase
         .from('movements')
         .delete()

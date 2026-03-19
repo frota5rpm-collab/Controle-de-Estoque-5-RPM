@@ -212,31 +212,9 @@ CREATE POLICY "Public Access Schedules" ON public.vehicle_schedules FOR ALL USIN
 DROP POLICY IF EXISTS "Public Access Substitutions" ON public.fleet_substitutions;
 CREATE POLICY "Public Access Substitutions" ON public.fleet_substitutions FOR ALL USING (true) WITH CHECK (true);
 
--- Trigger de Estoque
-CREATE OR REPLACE FUNCTION handle_inventory_update() RETURNS TRIGGER AS $$
-BEGIN
-    IF (TG_OP = 'DELETE' OR TG_OP = 'UPDATE') THEN
-        IF OLD.type = 'ENTRADA' THEN
-            UPDATE materials SET quantity = quantity - OLD.quantity WHERE id = OLD.material_id;
-        ELSE 
-            UPDATE materials SET quantity = quantity + OLD.quantity WHERE id = OLD.material_id;
-        END IF;
-    END IF;
-    IF (TG_OP = 'INSERT' OR TG_OP = 'UPDATE') THEN
-        IF NEW.type = 'ENTRADA' THEN
-            UPDATE materials SET quantity = quantity + NEW.quantity WHERE id = NEW.material_id;
-        ELSE 
-            UPDATE materials SET quantity = quantity - NEW.quantity WHERE id = NEW.material_id;
-        END IF;
-    END IF;
-    RETURN NULL;
-END;
-$$ LANGUAGE plpgsql;
-
+-- Limpeza de Gatilhos (A lógica agora é processada no Frontend para maior controle)
 DROP TRIGGER IF EXISTS trigger_inventory_update ON public.movements;
-CREATE TRIGGER trigger_inventory_update
-AFTER INSERT OR UPDATE OR DELETE ON public.movements
-FOR EACH ROW EXECUTE FUNCTION handle_inventory_update();
+DROP FUNCTION IF EXISTS handle_inventory_update();
   `;
 
   const handleCopy = () => {
