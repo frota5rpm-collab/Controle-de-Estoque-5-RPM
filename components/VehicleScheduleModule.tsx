@@ -25,6 +25,24 @@ export const VehicleScheduleModule: React.FC<VehicleScheduleModuleProps> = ({ on
   // Filtros
   const [viewMode, setViewMode] = useState<'FUTURE' | 'ALL'>('FUTURE');
   const [filterDate, setFilterDate] = useState(''); 
+  const [filterMonth, setFilterMonth] = useState('');
+  const [filterYear, setFilterYear] = useState('');
+
+  const months = [
+    { value: '01', label: 'Jan' },
+    { value: '02', label: 'Fev' },
+    { value: '03', label: 'Mar' },
+    { value: '04', label: 'Abr' },
+    { value: '05', label: 'Mai' },
+    { value: '06', label: 'Jun' },
+    { value: '07', label: 'Jul' },
+    { value: '08', label: 'Ago' },
+    { value: '09', label: 'Set' },
+    { value: '10', label: 'Out' },
+    { value: '11', label: 'Nov' },
+    { value: '12', label: 'Dez' },
+  ];
+  const years = Array.from({ length: 7 }, (_, i) => (new Date().getFullYear() - 1 + i).toString());
   
   // Modais
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -273,9 +291,27 @@ export const VehicleScheduleModule: React.FC<VehicleScheduleModuleProps> = ({ on
 
   const filteredSchedules = schedules.filter(s => {
       const matchesSearch = s.vehicle_prefix.includes(search) || s.driver_name.toLowerCase().includes(search.toLowerCase());
-      const matchesDate = filterDate ? (new Date(s.start_time).toISOString().split('T')[0] === filterDate) : true;
+      
+      let matchesDate = true;
+      if (filterDate) {
+          const selectedDayStart = new Date(`${filterDate}T00:00:00`);
+          const selectedDayEnd = new Date(`${filterDate}T23:59:59`);
+          const schStart = new Date(s.start_time);
+          const schEnd = new Date(s.end_time);
+          // Sobreposição: Início da reserva <= Fim do dia E Fim da reserva >= Início do dia
+          matchesDate = schStart <= selectedDayEnd && schEnd >= selectedDayStart;
+      } else if (filterMonth && filterYear) {
+          const monthStart = new Date(parseInt(filterYear), parseInt(filterMonth) - 1, 1);
+          const monthEnd = new Date(parseInt(filterYear), parseInt(filterMonth), 1);
+          const schStart = new Date(s.start_time);
+          const schEnd = new Date(s.end_time);
+          // Sobreposição: Início da reserva < Fim do mês E Fim da reserva >= Início do mês
+          matchesDate = schStart < monthEnd && schEnd >= monthStart;
+      }
+
       const isFuture = new Date(s.end_time) > new Date();
-      return matchesSearch && matchesDate && (viewMode === 'ALL' || isFuture);
+      const isDateFiltered = !!filterDate || (!!filterMonth && !!filterYear);
+      return matchesSearch && matchesDate && (viewMode === 'ALL' || isFuture || isDateFiltered);
   });
 
   return (
@@ -312,7 +348,33 @@ export const VehicleScheduleModule: React.FC<VehicleScheduleModuleProps> = ({ on
                         <input type="text" placeholder="Buscar (Prefixo, Motorista...)" className="w-full pl-9 pr-4 py-2 border rounded-md outline-none text-sm focus:ring-1 focus:ring-[#C5A059]" value={search} onChange={e => setSearch(e.target.value)} />
                     </div>
                     {/* DATA */}
-                    <input type="date" className="border p-2 rounded-md outline-none text-sm text-gray-700 font-medium" value={filterDate} onChange={e => setFilterDate(e.target.value)} />
+                    <div className="flex items-center gap-1 bg-white border rounded-md px-2">
+                        <Calendar size={14} className="text-gray-400" />
+                        <input type="date" title="Filtrar por dia específico" className="p-2 outline-none text-xs text-gray-700 font-medium bg-transparent" value={filterDate} onChange={e => { setFilterDate(e.target.value); setFilterMonth(''); setFilterYear(''); }} />
+                        {filterDate && <button onClick={() => setFilterDate('')} className="text-gray-400 hover:text-red-500"><X size={14}/></button>}
+                    </div>
+
+                    {/* MÊS/ANO */}
+                    <div className="flex items-center gap-1 bg-white border rounded-md px-2">
+                        <select 
+                            className="p-2 outline-none text-xs font-bold text-gray-700 bg-transparent appearance-none cursor-pointer"
+                            value={filterMonth}
+                            onChange={(e) => { setFilterMonth(e.target.value); setFilterDate(''); if(!filterYear) setFilterYear(new Date().getFullYear().toString()); }}
+                        >
+                            <option value="">Mês</option>
+                            {months.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
+                        </select>
+                        <div className="w-px h-4 bg-gray-200 mx-1"></div>
+                        <select 
+                            className="p-2 outline-none text-xs font-bold text-gray-700 bg-transparent appearance-none cursor-pointer"
+                            value={filterYear}
+                            onChange={(e) => { setFilterYear(e.target.value); setFilterDate(''); }}
+                        >
+                            <option value="">Ano</option>
+                            {years.map(y => <option key={y} value={y}>{y}</option>)}
+                        </select>
+                        {(filterMonth || filterYear) && <button onClick={() => { setFilterMonth(''); setFilterYear(''); }} className="ml-1 text-gray-400 hover:text-red-500"><X size={14}/></button>}
+                    </div>
                     
                     {/* DROPDOWN DE FILTRO DE VISUALIZAÇÃO */}
                     <div className="relative w-full sm:w-56">
